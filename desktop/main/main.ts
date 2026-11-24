@@ -19,6 +19,9 @@ import { DesktopStore, JsonFile } from './store';
 
 const DIST = __dirname;
 
+// Test hooks: a throw-away profile and an off-screen window.
+if (process.env.MYSQL_LENS_USERDATA) app.setPath('userData', process.env.MYSQL_LENS_USERDATA);
+
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 
 let win: BrowserWindow | undefined;
@@ -527,10 +530,11 @@ function buildMenu(): void {
 }
 
 function createWindow(): void {
-  const hidden = process.env.MYSQL_LENS_HIDDEN === '1';
+  const offscreen = process.env.MYSQL_LENS_OFFSCREEN === '1';
   win = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: offscreen ? 1280 : 1400,
+    height: offscreen ? 800 : 900,
+    ...(offscreen ? { x: -5000, y: -5000 } : {}),
     minWidth: 900,
     minHeight: 560,
     show: false,
@@ -546,7 +550,8 @@ function createWindow(): void {
     },
   });
   win.once('ready-to-show', () => {
-    if (!hidden) win?.show();
+    if (offscreen) win?.showInactive();
+    else win?.show();
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) void shell.openExternal(url);
