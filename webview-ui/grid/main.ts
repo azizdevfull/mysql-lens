@@ -1,7 +1,8 @@
 import './grid.css';
-import type { ExportFormat, GridToExtension, GridToWebview, ResultSet, SortSpec, TablePage } from '../../src/shared/protocol';
+import type { SchemaInfo, ExportFormat, GridToExtension, GridToWebview, ResultSet, SortSpec, TablePage } from '../../src/shared/protocol';
 import { contextMenu, formatMs, formatNumber, h, icon, iconButton, modal, toast, vscode } from '../common/dom';
 import { DataGrid } from './datagrid';
+import { SqlEditor } from './sqleditor';
 
 const api = vscode();
 const send = (m: GridToExtension) => api.postMessage(m);
@@ -262,11 +263,11 @@ class TableView {
   private requestId = 0;
   private pendingPreview: ((stmts: string[]) => void) | null = null;
   private sort: SortSpec | null = null;
-  private filterApplied = '';
+  private filter = '';
+  private readonly editor: SqlEditor;
 
   private readonly title = h('span.title');
   private readonly subtitle = h('span.subtitle');
-  private readonly filter = h('input.filter.mono', { type: 'text', placeholder: "status = 'active' AND created_at > '2025-01-01'   (Enter to apply)", spellcheck: false });
   private readonly errorBar = h('div.error-bar');
   private readonly content = h('div.content');
   private readonly statusLeft = h('span');
@@ -291,21 +292,20 @@ class TableView {
       onChange: () => this.updateChanges(),
       onSelection: () => (this.statusRight.textContent = selectionText(this.grid)),
       onFilterByValue: (col, v, op) => {
+        if (this.page?.custom) {
+          toast('Filtering by value works on table data. Edit the query instead.', 'warn');
+          return;
+        }
         const q = '`' + col.name.replace(/`/g, '``') + '`';
         const cond = v === null ? `${q} IS ${op === '=' ? '' : 'NOT '}NULL` : `${q} ${op} ${typeof v === 'number' || (col.numeric && /^-?\d+(\.\d+)?$/.test(v)) ? v : `'${String(v).replace(/\\/g, '\\\\').replace(/'/g, "''")}'`}`;
-        this.filter.value = this.filter.value.trim() ? `${this.filter.value.trim()} AND ${cond}` : cond;
+        this.filter = this.filter.trim() ? `${this.filter.trim()} AND ${cond}` : cond;
         void this.load(0);
       },
     });
 
-    this.filter.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        void this.load(0);
-      } else if (e.key === 'Escape' && this.filter.value) {
-        this.filter.value = '';
-        void this.load(0);
-      }
+    this.editor = new SqlEditor({
+      placeholder: 'SELECT * FROM table WHERE …   (Ctrl+Enter to run, Ctrl+Space for suggestions)',
+      onRun: (sql) => void this.runQuery(sql),
     });
 
     const exportBtn: HTMLButtonElement = iconButton('cloud-upload', 'Export table (uses the current filter and sort, all pages)', () => exportMenu(exportBtn, (format) => send({ type: 'export', format })), 'Export');
@@ -331,12 +331,19 @@ class TableView {
           icon('table', 'title-icon'),
           this.title,
           this.subtitle,
-          h('span.sep'),
-          h('div.filter-wrap', null, h('span.where', null, 'WHERE'), this.filter, iconButton('filter', 'Apply filter (Enter)', () => void this.load(0)), iconButton('clear-all', 'Clear filter', () => {
-            this.filter.value = '';
+          h('span.spacer'),
+          iconButton('discard', 'Reset query to the whole table', () => {
+            this.filter = '';
+            this.sort = null;
             void this.load(0);
-          })),
-          iconButton('refresh', 'Reload (F5)', () => void this.load()),
+          }),
+          iconButton('refresh', 'Reload (F5)', () => void this.reload()),
+        ),
+        h(
+          'div.query-row',
+          null,
+          this.editor.el,
+          h('button.btn.run-btn', { title: 'Run query (Ctrl+Enter)', onclick: () => void this.runQuery(this.editor.value) }, icon('play'), 'Run'),
         ),
         h('div.toolbar.second', null, this.editButtons, h('span.spacer'), exportBtn),
         this.loadingBar,
@@ -355,11 +362,10 @@ class TableView {
         this.save();
       } else if (e.key === 'F5') {
         e.preventDefault();
-        void this.load();
-      } else if (mod && e.key.toLowerCase() === 'f') {
+        void this.reload();
+      } else if (mod && e.key.toLowerCase() === 'l') {
         e.preventDefault();
-        this.filter.focus();
-        this.filter.select();
+        this.editor.focus();
       }
     });
     this.updateChanges();
@@ -386,12 +392,35 @@ class TableView {
     return r === 'discard';
   }
 
-  async load(page = this.page?.page ?? 0, pageSize = this.page?.pageSize ?? 200): Promise<void> {
+  setSchema(s: SchemaInfo): void {
+    this.editor.setSchema(s);
+  }
+
+  async load(page = this.page?.page ?? 0, pageSize = this.page && !this.page.custom ? this.page.pageSize : 200): Promise<void> {
     if (!(await this.confirmDiscard())) return;
     this.loading = true;
     this.loadingBar.classList.add('on');
-    this.filterApplied = this.filter.value;
-    send({ type: 'loadPage', page, pageSize, sort: this.sort, filter: this.filter.value });
+    send({ type: 'loadPage', page, pageSize, sort: this.sort, filter: this.filter });
+  }
+
+  private async runQuery(sql: string): Promise<void> {
+    if (!sql.trim()) return;
+    if (!(await this.confirmDiscard())) return;
+    this.loading = true;
+    this.loadingBar.classList.add('on');
+    send({ type: 'runQuery', sql });
+  }
+
+  private async reload(): Promise<void> {
+    if (this.page?.custom) await this.runQuery(this.page.query);
+    else await this.load();
+  }
+
+  queryDone(message: string): void {
+    this.loading = false;
+    this.loadingBar.classList.remove('on');
+    this.errorBar.hidden = true;
+    toast(message);
   }
 
   setPage(p: TablePage): void {
@@ -401,21 +430,29 @@ class TableView {
     this.loadingBar.classList.remove('on');
     this.errorBar.hidden = true;
     this.sort = p.sort;
+    this.filter = p.filter;
+    this.grid.setServerSort(!p.custom);
+    if (!this.editor.focused || p.custom) this.editor.value = p.query;
     const sortCol = p.sort ? p.columns.findIndex((c) => c.name === p.sort!.column) : -1;
     const editable = !this.readOnly && p.keyColumns.length > 0;
     this.grid.setData(p.columns, p.rows, {
       editable,
       keyColumns: p.keyColumns,
       sort: sortCol >= 0 ? { col: sortCol, dir: p.sort!.dir } : null,
-      keepScroll: !!same,
+      keepScroll: !!same && !p.custom,
       tableName: p.columns[0]?.table,
     });
     this.editButtons.hidden = !editable;
-    const from = p.total ? p.page * p.pageSize + 1 : 0;
-    const to = Math.min(p.total, (p.page + 1) * p.pageSize);
-    this.statusLeft.textContent = `${formatNumber(from)}–${formatNumber(to)} of ${formatNumber(p.total)} rows · ${formatMs(p.durationMs)}`;
-    this.statusMid.replaceChildren(p.readOnlyReason ? h('span', { title: p.readOnlyReason }, icon('lock'), ' Read-only') : '');
-    this.renderPager();
+    if (p.custom) {
+      this.statusLeft.textContent = `${formatNumber(p.total)} row${p.total === 1 ? '' : 's'} · ${p.columns.length} columns · ${formatMs(p.durationMs)}`;
+      this.pager.replaceChildren();
+    } else {
+      const from = p.total ? p.page * p.pageSize + 1 : 0;
+      const to = Math.min(p.total, (p.page + 1) * p.pageSize);
+      this.statusLeft.textContent = `${formatNumber(from)}–${formatNumber(to)} of ${formatNumber(p.total)} rows · ${formatMs(p.durationMs)}`;
+      this.renderPager();
+    }
+    this.statusMid.replaceChildren(p.readOnlyReason ? h('span', { title: p.readOnlyReason }, icon('lock'), p.custom ? ' Query result · read-only' : ' Read-only') : '');
     this.updateChanges();
   }
 
@@ -424,7 +461,7 @@ class TableView {
     this.loadingBar.classList.remove('on');
     this.errorBar.hidden = false;
     this.errorBar.replaceChildren(icon('error'), h('span.mono', null, message), h('span.spacer'), iconButton('close', 'Dismiss', () => (this.errorBar.hidden = true)));
-    if (this.filterApplied.trim()) this.filter.focus();
+    this.editor.focus();
   }
 
   private renderPager(): void {
@@ -547,6 +584,12 @@ window.addEventListener('message', (ev: MessageEvent<GridToWebview>) => {
       break;
     case 'applied':
       table?.applied(m.ok, m.message, m.failedIndex);
+      break;
+    case 'schema':
+      table?.setSchema(m.schema);
+      break;
+    case 'queryDone':
+      table?.queryDone(m.message);
       break;
   }
 });

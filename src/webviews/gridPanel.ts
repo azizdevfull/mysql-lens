@@ -5,6 +5,8 @@ import { SchemaService } from '../schema';
 import type { Cell, ColumnInfo, ExportFormat, GridToExtension, GridToWebview, ResultSet, RowChange, SortSpec, TablePage } from '../shared/protocol';
 import { cellLiteral, qid, qualified, toCell } from '../sql';
 import { executeStatement, killQuery } from '../query/executor';
+import { splitSql } from '../query/splitter';
+import { buildTableQuery, parseTableQuery } from '../query/tableQuery';
 import { exportCell, streamQuery } from '../io/exporters';
 import { pickSaveFile, writeExport } from '../io/exportFlow';
 import { errorText } from './connectionForm';
@@ -237,6 +239,10 @@ export class TablePanel extends GridPanel {
   private keyColumns: string[] = [];
   private state: { page: number; pageSize: number; sort: SortSpec | null; filter: string };
   private readonly key: string;
+  /** Free-form query currently shown instead of table paging. */
+  private customSql: string | null = null;
+  /** Dedicated session for free-form queries (keeps USE / SET between runs). */
+  private session?: mysql.Connection;
 
   static open(ctx: vscode.ExtensionContext, conns: ConnectionManager, schema: SchemaService, connId: string, db: string, table: string, isView: boolean): void {
     const key = `${connId}|${db}|${table}`;
@@ -283,6 +289,95 @@ export class TablePanel extends GridPanel {
     const cfg = this.conns.config(this.connId);
     this.post({ type: 'init', mode: 'table', title: `${this.db}.${this.table}`, subtitle: cfg.name, readOnly: cfg.readOnly || this.isView });
     await this.load();
+    void this.sendSchema();
+  }
+
+  private async sendSchema(): Promise<void> {
+    try {
+      const [tables, cols] = await Promise.all([this.schema.tables(this.connId, this.db), this.schema.allColumns(this.connId, this.db)]);
+      this.post({
+        type: 'schema',
+        schema: { database: this.db, table: this.table, tables: tables.map((t) => t.name), columns: Object.fromEntries(cols) },
+      });
+    } catch {
+      // Autocomplete falls back to keywords.
+    }
+  }
+
+  /** Runs SQL typed in the panel's query editor. */
+  private async runQuery(sql: string): Promise<void> {
+    const pageSize = vscode.workspace.getConfiguration('mysqlStudio').get<number>('pageSize', 200);
+    const simple = parseTableQuery(sql, this.db, this.table, pageSize);
+    if (simple) {
+      this.customSql = null;
+      this.state = simple;
+      await this.load();
+      return;
+    }
+    const statements = splitSql(sql).map((st) => st.sql);
+    if (!statements.length) {
+      return;
+    }
+    try {
+      if (!this.session) {
+        const conn = await this.conns.dedicated(this.connId, this.db);
+        conn.on('error', () => (this.session = undefined));
+        conn.on('end', () => (this.session = undefined));
+        this.session = conn;
+      }
+      const maxRows = vscode.workspace.getConfiguration('mysqlStudio').get<number>('maxRows', 5000);
+      const started = Date.now();
+      let shown: ResultSet | undefined;
+      const messages: string[] = [];
+      let changed = false;
+      for (const st of statements) {
+        const results = await executeStatement(this.session, st, maxRows);
+        for (const r of results) {
+          if (r.kind === 'error') {
+            throw new Error(statements.length > 1 ? `${r.error}\n\nin: ${st.slice(0, 300)}` : r.error);
+          }
+          if (r.kind === 'rows') {
+            shown = r;
+          } else {
+            changed = true;
+            messages.push(`${(r.affectedRows ?? 0).toLocaleString()} row(s) affected${r.info ? ' · ' + r.info.trim() : ''}`);
+          }
+        }
+      }
+      if (shown) {
+        this.customSql = sql;
+        this.post({
+          type: 'page',
+          page: {
+            columns: shown.columns,
+            rows: shown.rows,
+            total: shown.totalRows,
+            page: 0,
+            pageSize: Math.max(1, shown.rows.length),
+            sort: null,
+            filter: '',
+            durationMs: Date.now() - started,
+            keyColumns: [],
+            readOnlyReason: shown.truncated
+              ? `Custom query: showing first ${shown.rows.length.toLocaleString()} of ${shown.totalRows.toLocaleString()} rows (read-only).`
+              : 'Custom query results are read-only. Use SELECT * FROM the table to edit rows.',
+            query: sql,
+            custom: true,
+          },
+        });
+      }
+      if (messages.length) {
+        this.post({ type: 'queryDone', message: messages.join('\n') });
+      }
+      if (changed) {
+        this.schema.invalidate(this.connId, this.db);
+        if (!shown) {
+          await this.load();
+        }
+      }
+    } catch (e) {
+      this.post({ type: 'pageError', message: errorText(e) });
+    }
   }
 
   async load(): Promise<void> {
@@ -323,7 +418,10 @@ export class TablePanel extends GridPanel {
             : this.keyColumns.length
               ? undefined
               : 'Table has no primary or unique key, so rows cannot be identified for editing.',
+        query: buildTableQuery(this.table, this.state),
+        custom: false,
       };
+      this.customSql = null;
       this.post({ type: 'page', page: result });
       this.panel.title = this.table;
     } catch (e) {
@@ -337,8 +435,15 @@ export class TablePanel extends GridPanel {
         this.state = { page: m.page, pageSize: m.pageSize, sort: m.sort, filter: m.filter };
         await this.load();
         return;
+      case 'runQuery':
+        await this.runQuery(m.sql);
+        return;
       case 'rerun':
-        await this.load();
+        if (this.customSql) {
+          await this.runQuery(this.customSql);
+        } else {
+          await this.load();
+        }
         return;
       case 'previewChanges':
         this.post({ type: 'preview', statements: m.changes.map((c) => this.changeSql(c)), requestId: m.requestId });
@@ -411,6 +516,11 @@ export class TablePanel extends GridPanel {
     if (!file) {
       return;
     }
+    if (this.customSql) {
+      const statements = splitSql(this.customSql);
+      await exportQuery(this.conns, this.connId, this.db, statements[statements.length - 1].sql, format, file, this.table);
+      return;
+    }
     const { sort, filter } = this.state;
     const where = filter.trim() ? ` WHERE ${filter}` : '';
     const order = sort ? ` ORDER BY ${qid(sort.column)} ${sort.dir === 'desc' ? 'DESC' : 'ASC'}` : '';
@@ -419,6 +529,7 @@ export class TablePanel extends GridPanel {
 
   protected onDispose(): void {
     tablePanels.delete(this.key);
+    this.session?.destroy();
   }
 }
 

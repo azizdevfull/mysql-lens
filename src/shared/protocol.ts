@@ -61,6 +61,24 @@ export interface TablePage {
   /** Columns that identify a row. Empty means the table cannot be edited. */
   keyColumns: string[];
   readOnlyReason?: string;
+  /** SQL that produced this page, shown in the query editor. */
+  query: string;
+  /** True when the page comes from a free-form query instead of table paging. */
+  custom: boolean;
+}
+
+export interface SchemaColumn {
+  name: string;
+  type: string;
+  pk?: boolean;
+}
+
+/** Table and column names for autocomplete in the query editor. */
+export interface SchemaInfo {
+  database: string;
+  table: string;
+  tables: string[];
+  columns: Record<string, SchemaColumn[]>;
 }
 
 export type ExportFormat = 'csv' | 'tsv' | 'json' | 'sql' | 'markdown' | 'xlsx';
@@ -75,7 +93,9 @@ export type GridToWebview =
   | { type: 'page'; page: TablePage }
   | { type: 'pageError'; message: string }
   | { type: 'preview'; statements: string[]; requestId: number }
-  | { type: 'applied'; ok: boolean; message?: string; failedIndex?: number };
+  | { type: 'applied'; ok: boolean; message?: string; failedIndex?: number }
+  | { type: 'schema'; schema: SchemaInfo }
+  | { type: 'queryDone'; message: string };
 
 export type GridToExtension =
   | { type: 'ready' }
@@ -83,6 +103,7 @@ export type GridToExtension =
   | { type: 'rerun' }
   | { type: 'export'; resultId?: number; format: ExportFormat }
   | { type: 'loadPage'; page: number; pageSize: number; sort: SortSpec | null; filter: string }
+  | { type: 'runQuery'; sql: string }
   | { type: 'previewChanges'; changes: RowChange[]; requestId: number }
   | { type: 'applyChanges'; changes: RowChange[] }
   | { type: 'copy'; text: string }

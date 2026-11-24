@@ -513,7 +513,8 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p webview-ui",
-    "test": "esbuild test/integration.test.ts --bundle --platform=node --format=cjs --outfile=test/out/integration.test.cjs --external:cpu-features --log-level=warning && node --test test/out/",
+    "test:unit": "esbuild test/unit.test.ts --bundle --platform=node --format=cjs --outfile=test/out/unit.test.cjs --log-level=warning && node --test test/out/unit.test.cjs",
+    "test": "esbuild test/unit.test.ts test/integration.test.ts --bundle --platform=node --format=cjs --outdir=test/out --out-extension:.js=.cjs --external:cpu-features --log-level=warning && node --test test/out/",
     "package": "npm run typecheck && node esbuild.mjs --production && vsce package --no-dependencies --allow-missing-repository"
   },
   "dependencies": {

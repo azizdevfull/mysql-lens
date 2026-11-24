@@ -55,7 +55,7 @@ export class DataGrid {
   private dragging = false;
   private raf = 0;
   private measureCtx: CanvasRenderingContext2D | null = null;
-  private readonly serverSort: boolean;
+  private serverSort: boolean;
   private lastDown: { r: number; c: number; t: number } | null = null;
 
   constructor(private readonly opts: GridOptions) {
@@ -101,6 +101,11 @@ export class DataGrid {
       this.clampSel();
     }
     this.rebuildView();
+  }
+
+  /** Switches between server-side (table paging) and client-side sorting. */
+  setServerSort(on: boolean): void {
+    this.serverSort = on;
   }
 
   get columnCount(): number {

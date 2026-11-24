@@ -36,7 +36,7 @@ export class SqlCompletion implements vscode.CompletionItemProvider {
     const dotted = /([`\w$]+)\.(`?[\w$]*)$/.exec(linePrefix);
 
     let tables: string[] = [];
-    let columns = new Map<string, string[]>();
+    let columns = new Map<string, { name: string; type: string; pk: boolean }[]>();
     if (b?.database) {
       try {
         const [t, c] = await Promise.all([this.schema.tables(b.connId, b.database), this.schema.allColumns(b.connId, b.database)]);
@@ -53,8 +53,8 @@ export class SqlCompletion implements vscode.CompletionItemProvider {
       const cols = columns.get(table) ?? [...columns.entries()].find(([k]) => k.toLowerCase() === table.toLowerCase())?.[1];
       if (cols) {
         return cols.map((c) => {
-          const it = new vscode.CompletionItem(c, vscode.CompletionItemKind.Field);
-          it.detail = table;
+          const it = new vscode.CompletionItem({ label: c.name, description: c.type }, vscode.CompletionItemKind.Field);
+          it.detail = `${table}.${c.name} ${c.type}`;
           it.sortText = '0';
           return it;
         });
@@ -82,13 +82,13 @@ export class SqlCompletion implements vscode.CompletionItemProvider {
     const seen = new Set<string>();
     for (const t of mentioned) {
       for (const c of columns.get(t) ?? []) {
-        if (seen.has(c)) {
+        if (seen.has(c.name)) {
           continue;
         }
-        seen.add(c);
-        const it = new vscode.CompletionItem(c, vscode.CompletionItemKind.Field);
-        it.detail = t;
-        it.sortText = '0' + c;
+        seen.add(c.name);
+        const it = new vscode.CompletionItem({ label: c.name, description: `${c.type} · ${t}` }, vscode.CompletionItemKind.Field);
+        it.detail = `${t}.${c.name} ${c.type}`;
+        it.sortText = '0' + c.name;
         items.push(it);
       }
     }

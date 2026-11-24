@@ -115,17 +115,18 @@ export class SchemaService {
   }
 
   /** All columns of a database, grouped by table (for autocomplete). */
-  allColumns(connId: string, db: string): Promise<Map<string, string[]>> {
+  allColumns(connId: string, db: string): Promise<Map<string, { name: string; type: string; pk: boolean }[]>> {
     return this.cached(`${connId}|${db}|allcols`, async () => {
-      const rows = await this.conns.query<{ t: string; c: string }[]>(
+      const rows = await this.conns.query<{ t: string; c: string; ty: string; k: string }[]>(
         connId,
-        'SELECT TABLE_NAME AS t, COLUMN_NAME AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? ORDER BY TABLE_NAME, ORDINAL_POSITION',
+        `SELECT TABLE_NAME AS t, COLUMN_NAME AS c, COLUMN_TYPE AS ty, COLUMN_KEY AS k
+           FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? ORDER BY TABLE_NAME, ORDINAL_POSITION`,
         [db],
       );
-      const map = new Map<string, string[]>();
+      const map = new Map<string, { name: string; type: string; pk: boolean }[]>();
       for (const r of rows) {
         const list = map.get(r.t) ?? [];
-        list.push(r.c);
+        list.push({ name: r.c, type: String(r.ty), pk: r.k === 'PRI' });
         map.set(r.t, list);
       }
       return map;
