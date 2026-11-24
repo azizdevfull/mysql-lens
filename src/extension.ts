@@ -16,7 +16,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const history = new QueryHistory(ctx);
   const sessions = new EditorSessions(ctx, store, conns, schema, history);
 
-  const view = vscode.window.createTreeView('mysqlStudio.connections', {
+  const view = vscode.window.createTreeView('mysqlLens.connections', {
     treeDataProvider: tree,
     dragAndDropController: tree,
     showCollapseAll: true,
@@ -28,7 +28,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
     view,
     vscode.languages.registerCompletionItemProvider({ language: 'sql' }, new SqlCompletion(sessions, schema), '.'),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('mysqlStudio.showSystemDatabases')) {
+      if (e.affectsConfiguration('mysqlLens.showSystemDatabases')) {
         for (const c of store.list()) {
           schema.invalidate(c.id);
         }

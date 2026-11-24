@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { randomUUID } from 'node:crypto';
 import { ConnectionConfig, defaultConfig } from './types';
 
-const KEY = 'mysqlStudio.connections';
+const KEY = 'mysqlLens.connections';
 
 export type SecretKind = 'password' | 'sshPassword' | 'sshPassphrase';
 
@@ -54,18 +54,18 @@ export class ConnectionStore {
   }
 
   getSecret(id: string, kind: SecretKind): Thenable<string | undefined> {
-    return this.ctx.secrets.get(`mysqlStudio.${kind}.${id}`);
+    return this.ctx.secrets.get(`mysqlLens.${kind}.${id}`);
   }
 
   async setSecret(id: string, kind: SecretKind, value: string | undefined): Promise<void> {
     if (value) {
-      await this.ctx.secrets.store(`mysqlStudio.${kind}.${id}`, value);
+      await this.ctx.secrets.store(`mysqlLens.${kind}.${id}`, value);
     } else {
       await this.deleteSecret(id, kind);
     }
   }
 
   private async deleteSecret(id: string, kind: SecretKind): Promise<void> {
-    await this.ctx.secrets.delete(`mysqlStudio.${kind}.${id}`);
+    await this.ctx.secrets.delete(`mysqlLens.${kind}.${id}`);
   }
 }

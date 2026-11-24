@@ -133,7 +133,7 @@ export class ConnectionManager implements vscode.Disposable {
     const tunnel = await openTunnelFor(config, secrets, () => {
       if (this.sessions.has(id)) {
         void this.disconnect(id);
-        void vscode.window.showWarningMessage(`MySQL Studio: SSH tunnel for "${config.name}" closed.`);
+        void vscode.window.showWarningMessage(`MySQL Lens: SSH tunnel for "${config.name}" closed.`);
       }
     });
     try {

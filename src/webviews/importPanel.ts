@@ -18,7 +18,7 @@ export function showImportPanel(
   onDone: () => void,
 ): void {
   const cfg = conns.config(connId);
-  const panel = vscode.window.createWebviewPanel('mysqlStudio.import', `Import into ${db}`, vscode.ViewColumn.Active, webviewOptions(ctx.extensionUri));
+  const panel = vscode.window.createWebviewPanel('mysqlLens.import', `Import into ${db}`, vscode.ViewColumn.Active, webviewOptions(ctx.extensionUri));
   panel.iconPath = vscode.Uri.joinPath(ctx.extensionUri, 'media', 'panel.svg');
   panel.webview.html = webviewHtml(panel.webview, ctx.extensionUri, 'importer', 'Import');
 
@@ -80,7 +80,7 @@ export function showImportPanel(
           break;
         case 'openTable':
           panel.dispose();
-          await vscode.commands.executeCommand('mysqlStudio.openTable', { kind: 'table', connId, db, name: m.table });
+          await vscode.commands.executeCommand('mysqlLens.openTable', { kind: 'table', connId, db, name: m.table });
           break;
         case 'run': {
           if (!file || !options || running) {
@@ -118,7 +118,7 @@ export function showImportPanel(
         }
       }
     } catch (e) {
-      void vscode.window.showErrorMessage(`MySQL Studio: ${errorText(e)}`);
+      void vscode.window.showErrorMessage(`MySQL Lens: ${errorText(e)}`);
     }
   });
 }

@@ -115,7 +115,7 @@ export class ConnectionTree implements vscode.TreeDataProvider<Node>, vscode.Tre
         item.description = n.description;
         item.tooltip = n.tooltip;
         item.contextValue = n.kind;
-        item.command = { command: 'mysqlStudio.openTable', title: 'Open', arguments: [n] };
+        item.command = { command: 'mysqlLens.openTable', title: 'Open', arguments: [n] };
         return item;
       }
       case 'column': {
@@ -140,7 +140,7 @@ export class ConnectionTree implements vscode.TreeDataProvider<Node>, vscode.Tre
         const item = new vscode.TreeItem(n.name!, C.None);
         item.iconPath = new vscode.ThemeIcon(n.kind === 'trigger' ? 'zap' : n.kind === 'function' ? 'symbol-function' : 'symbol-method');
         item.contextValue = n.kind;
-        item.command = { command: 'mysqlStudio.showDdl', title: 'Show', arguments: [n] };
+        item.command = { command: 'mysqlLens.showDdl', title: 'Show', arguments: [n] };
         return item;
       }
       case 'message': {

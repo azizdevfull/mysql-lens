@@ -28,7 +28,7 @@ export async function showConnectionForm(
   }
 
   const panel = vscode.window.createWebviewPanel(
-    'mysqlStudio.connection',
+    'mysqlLens.connection',
     isNew ? 'New Connection' : `Edit: ${source?.name}`,
     vscode.ViewColumn.Active,
     webviewOptions(ctx.extensionUri),
@@ -83,7 +83,7 @@ export async function showConnectionForm(
             try {
               await conns.connect(saved.id);
             } catch (e) {
-              void vscode.window.showErrorMessage(`MySQL Studio: ${saved.name}: ${errorText(e)}`);
+              void vscode.window.showErrorMessage(`MySQL Lens: ${saved.name}: ${errorText(e)}`);
             }
           }
         } catch (e) {

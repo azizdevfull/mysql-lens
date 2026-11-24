@@ -20,7 +20,7 @@ interface Session {
   results?: ResultsPanel;
 }
 
-const BINDINGS_KEY = 'mysqlStudio.editorBindings';
+const BINDINGS_KEY = 'mysqlLens.editorBindings';
 const DDL = /^\s*(create|alter|drop|rename|truncate)\b/i;
 
 /**
@@ -45,9 +45,9 @@ export class EditorSessions implements vscode.Disposable {
     private readonly schema: SchemaService,
     private readonly history: QueryHistory,
   ) {
-    this.status = vscode.window.createStatusBarItem('mysqlStudio.editorConnection', vscode.StatusBarAlignment.Left, 100);
+    this.status = vscode.window.createStatusBarItem('mysqlLens.editorConnection', vscode.StatusBarAlignment.Left, 100);
     this.status.name = 'MySQL Connection';
-    this.status.command = 'mysqlStudio.selectConnection';
+    this.status.command = 'mysqlLens.selectConnection';
     this.disposables.push(
       this.status,
       this.flash,
@@ -117,7 +117,7 @@ export class EditorSessions implements vscode.Disposable {
       if (!list.length) {
         const add = await vscode.window.showInformationMessage('No MySQL connections yet.', 'Add Connection');
         if (add) {
-          await vscode.commands.executeCommand('mysqlStudio.addConnection');
+          await vscode.commands.executeCommand('mysqlLens.addConnection');
         }
         return undefined;
       }
@@ -142,7 +142,7 @@ export class EditorSessions implements vscode.Disposable {
       try {
         dbs = await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'Connecting…' }, () => this.schema.databases(connId!));
       } catch (e) {
-        void vscode.window.showErrorMessage(`MySQL Studio: ${errorText(e)}`);
+        void vscode.window.showErrorMessage(`MySQL Lens: ${errorText(e)}`);
         return undefined;
       }
       const def = this.store.get(connId)?.database;
@@ -255,7 +255,7 @@ export class EditorSessions implements vscode.Disposable {
           this.conns.dedicated(b.connId, b.database),
         );
       } catch (e) {
-        void vscode.window.showErrorMessage(`MySQL Studio: ${cfg.name}: ${errorText(e)}`);
+        void vscode.window.showErrorMessage(`MySQL Lens: ${cfg.name}: ${errorText(e)}`);
         return;
       }
       session.connKey = connKey;
@@ -302,12 +302,12 @@ export class EditorSessions implements vscode.Disposable {
     );
     if (ddl) {
       this.schema.invalidate(b.connId);
-      void vscode.commands.executeCommand('mysqlStudio.refresh');
+      void vscode.commands.executeCommand('mysqlLens.refresh');
     }
   }
 
   private async confirmDangerous(sqls: string[]): Promise<boolean> {
-    if (!vscode.workspace.getConfiguration('mysqlStudio').get<boolean>('confirmDangerousQueries', true)) {
+    if (!vscode.workspace.getConfiguration('mysqlLens').get<boolean>('confirmDangerousQueries', true)) {
       return true;
     }
     const risky = sqls.filter((s) => {

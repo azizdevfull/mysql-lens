@@ -67,7 +67,7 @@ export class SchemaService {
   databases(connId: string): Promise<string[]> {
     return this.cached(`${connId}|dbs`, async () => {
       const rows = await this.conns.query<{ Database: string }[]>(connId, 'SHOW DATABASES');
-      const showSystem = vscode.workspace.getConfiguration('mysqlStudio').get<boolean>('showSystemDatabases', false);
+      const showSystem = vscode.workspace.getConfiguration('mysqlLens').get<boolean>('showSystemDatabases', false);
       return rows.map((r) => r.Database).filter((d) => showSystem || !SYSTEM_DATABASES.has(d.toLowerCase()));
     });
   }

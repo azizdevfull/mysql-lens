@@ -64,7 +64,7 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
     } catch (e) {
       const msg = errorText(e);
       if (msg !== 'Cancelled.') {
-        void vscode.window.showErrorMessage(`MySQL Studio: ${msg}`);
+        void vscode.window.showErrorMessage(`MySQL Lens: ${msg}`);
       }
     }
   };
@@ -72,10 +72,10 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
   const reg = (id: string, fn: (...args: any[]) => unknown) => vscode.commands.registerCommand(id, guarded(fn));
 
   return [
-    reg('mysqlStudio.addConnection', () => showConnectionForm(ctx, store, conns)),
-    reg('mysqlStudio.editConnection', (n: Node) => showConnectionForm(ctx, store, conns, { id: n.connId })),
-    reg('mysqlStudio.duplicateConnection', (n: Node) => showConnectionForm(ctx, store, conns, { copyOf: n.connId })),
-    reg('mysqlStudio.deleteConnection', async (n: Node) => {
+    reg('mysqlLens.addConnection', () => showConnectionForm(ctx, store, conns)),
+    reg('mysqlLens.editConnection', (n: Node) => showConnectionForm(ctx, store, conns, { id: n.connId })),
+    reg('mysqlLens.duplicateConnection', (n: Node) => showConnectionForm(ctx, store, conns, { copyOf: n.connId })),
+    reg('mysqlLens.deleteConnection', async (n: Node) => {
       const c = store.get(n.connId);
       if (!c) {
         return;
@@ -86,7 +86,7 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
         await store.remove(c.id);
       }
     }),
-    reg('mysqlStudio.refresh', (n?: Node) => {
+    reg('mysqlLens.refresh', (n?: Node) => {
       if (n?.connId) {
         schema.invalidate(n.connId, n.db);
         tree.refresh(n.kind === 'connection' || n.kind === 'database' ? n : undefined);
@@ -94,39 +94,39 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
         refreshAll();
       }
     }),
-    reg('mysqlStudio.connect', async (n: Node) => {
-      await vscode.window.withProgress({ location: { viewId: 'mysqlStudio.connections' }, title: 'Connecting…' }, () => conns.connect(n.connId));
+    reg('mysqlLens.connect', async (n: Node) => {
+      await vscode.window.withProgress({ location: { viewId: 'mysqlLens.connections' }, title: 'Connecting…' }, () => conns.connect(n.connId));
     }),
-    reg('mysqlStudio.disconnect', (n: Node) => conns.disconnect(n.connId)),
+    reg('mysqlLens.disconnect', (n: Node) => conns.disconnect(n.connId)),
 
-    reg('mysqlStudio.newQuery', (n?: Node) => sessions.newQuery(n?.connId, n?.db)),
-    reg('mysqlStudio.runStatement', () => sessions.run('statement')),
-    reg('mysqlStudio.runAll', () => sessions.run('all')),
-    reg('mysqlStudio.rerun', (p: ResultsPanel) => sessions.rerun(p)),
-    reg('mysqlStudio.selectConnection', () => {
+    reg('mysqlLens.newQuery', (n?: Node) => sessions.newQuery(n?.connId, n?.db)),
+    reg('mysqlLens.runStatement', () => sessions.run('statement')),
+    reg('mysqlLens.runAll', () => sessions.run('all')),
+    reg('mysqlLens.rerun', (p: ResultsPanel) => sessions.rerun(p)),
+    reg('mysqlLens.selectConnection', () => {
       const ed = vscode.window.activeTextEditor;
       return ed ? sessions.pickBinding(ed.document.uri) : sessions.newQuery();
     }),
-    reg('mysqlStudio.queryHistory', () => history.show()),
+    reg('mysqlLens.queryHistory', () => history.show()),
 
-    reg('mysqlStudio.openTable', (n: Node) => TablePanel.open(ctx, conns, schema, n.connId, n.db!, n.name!, n.kind === 'view')),
-    reg('mysqlStudio.showDdl', async (n: Node) => {
+    reg('mysqlLens.openTable', (n: Node) => TablePanel.open(ctx, conns, schema, n.connId, n.db!, n.name!, n.kind === 'view')),
+    reg('mysqlLens.showDdl', async (n: Node) => {
       const sql = await schema.createStatement(n.connId, n.db!, n.kind, n.name!);
       const doc = await vscode.workspace.openTextDocument({ language: 'sql', content: (sql || `-- No definition available for ${n.name}`) + ';\n' });
       await sessions.setBinding(doc.uri, { connId: n.connId, database: n.db });
       await vscode.window.showTextDocument(doc, { preview: true });
     }),
-    reg('mysqlStudio.generateSelect', async (n: Node) => {
+    reg('mysqlLens.generateSelect', async (n: Node) => {
       const cols = await schema.columns(n.connId, n.db!, n.name!);
       const sql = `SELECT ${cols.map((c) => qid(c.name)).join(',\n       ')}\n  FROM ${qid(n.name!)}\n WHERE 1 = 1\n LIMIT 100;\n`;
       await sessions.newQuery(n.connId, n.db, sql);
     }),
-    reg('mysqlStudio.generateInsert', async (n: Node) => {
+    reg('mysqlLens.generateInsert', async (n: Node) => {
       const cols = (await schema.columns(n.connId, n.db!, n.name!)).filter((c) => !/auto_increment|GENERATED/i.test(c.extra));
       const sql = `INSERT INTO ${qid(n.name!)}\n  (${cols.map((c) => qid(c.name)).join(', ')})\nVALUES\n  (${cols.map((c) => placeholder(c.dataType)).join(', ')});\n`;
       await sessions.newQuery(n.connId, n.db, sql);
     }),
-    reg('mysqlStudio.generateUpdate', async (n: Node) => {
+    reg('mysqlLens.generateUpdate', async (n: Node) => {
       const cols = await schema.columns(n.connId, n.db!, n.name!);
       const pk = cols.filter((c) => c.key === 'PRI');
       const set = cols.filter((c) => c.key !== 'PRI' && !/GENERATED/i.test(c.extra));
@@ -134,13 +134,13 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
       const sql = `UPDATE ${qid(n.name!)}\n   SET ${set.map((c) => `${qid(c.name)} = ${placeholder(c.dataType)}`).join(',\n       ')}\n WHERE ${where};\n`;
       await sessions.newQuery(n.connId, n.db, sql);
     }),
-    reg('mysqlStudio.copyName', async (n: Node) => {
+    reg('mysqlLens.copyName', async (n: Node) => {
       const name = n.kind === 'database' ? n.db! : n.name!;
       await vscode.env.clipboard.writeText(name);
       vscode.window.setStatusBarMessage(`$(check) Copied ${name}`, 2000);
     }),
 
-    reg('mysqlStudio.createDatabase', async (n?: Node) => {
+    reg('mysqlLens.createDatabase', async (n?: Node) => {
       const t = await target(n, false);
       if (!t) {
         return;
@@ -160,7 +160,7 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
       schema.invalidate(t.connId);
       tree.refresh();
     }),
-    reg('mysqlStudio.dropDatabase', async (n: Node) => {
+    reg('mysqlLens.dropDatabase', async (n: Node) => {
       const typed = await vscode.window.showInputBox({
         title: `Drop database ${n.db}`,
         prompt: `This permanently deletes every table in "${n.db}". Type the database name to confirm.`,
@@ -173,7 +173,7 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
       schema.invalidate(n.connId);
       tree.refresh();
     }),
-    reg('mysqlStudio.truncateTable', async (n: Node) => {
+    reg('mysqlLens.truncateTable', async (n: Node) => {
       const ok = await vscode.window.showWarningMessage(`Delete all rows from ${n.db}.${n.name}?`, { modal: true, detail: 'TRUNCATE cannot be undone.' }, 'Truncate');
       if (ok !== 'Truncate') {
         return;
@@ -183,7 +183,7 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
       tree.refresh();
       TablePanel.refreshAll(n.connId, n.db);
     }),
-    reg('mysqlStudio.dropObject', async (n: Node) => {
+    reg('mysqlLens.dropObject', async (n: Node) => {
       const what = n.kind.toUpperCase();
       const ok = await vscode.window.showWarningMessage(`Drop ${n.kind} ${n.db}.${n.name}?`, { modal: true, detail: 'This cannot be undone.' }, 'Drop');
       if (ok !== 'Drop') {
@@ -194,7 +194,7 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
       tree.refresh();
     }),
 
-    reg('mysqlStudio.exportTable', async (n: Node) => {
+    reg('mysqlLens.exportTable', async (n: Node) => {
       const format = await pickFormat();
       if (!format) {
         return;
@@ -206,9 +206,9 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
       const meta = (await schema.tables(n.connId, n.db!)).find((t) => t.name === n.name);
       await exportQuery(conns, n.connId, n.db!, `SELECT * FROM ${qualified(n.db!, n.name!)}`, format, file, n.name!, meta?.rows ?? undefined);
     }),
-    reg('mysqlStudio.exportDatabase', (n?: Node) => exportDatabase(n)),
-    reg('mysqlStudio.importSql', (n?: Node) => importSql(n)),
-    reg('mysqlStudio.importData', async (n?: Node) => {
+    reg('mysqlLens.exportDatabase', (n?: Node) => exportDatabase(n)),
+    reg('mysqlLens.importSql', (n?: Node) => importSql(n)),
+    reg('mysqlLens.importData', async (n?: Node) => {
       const t = await target(n);
       if (!t?.db) {
         return;
@@ -219,7 +219,7 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
       });
     }),
 
-    reg('mysqlStudio.exportConnections', async () => {
+    reg('mysqlLens.exportConnections', async () => {
       const list = store.list();
       if (!list.length) {
         void vscode.window.showInformationMessage('No connections to export.');
@@ -239,11 +239,11 @@ export function registerCommands(d: Deps): vscode.Disposable[] {
       if (!file) {
         return;
       }
-      const data = { format: 'mysql-studio-connections', version: 1, connections: picked.map((p) => ({ ...p.c, id: undefined })) };
+      const data = { format: 'mysql-lens-connections', version: 1, connections: picked.map((p) => ({ ...p.c, id: undefined })) };
       await vscode.workspace.fs.writeFile(file, Buffer.from(JSON.stringify(data, null, 2)));
       void vscode.window.showInformationMessage(`Exported ${picked.length} connection(s). Passwords were not included.`);
     }),
-    reg('mysqlStudio.importConnections', async () => {
+    reg('mysqlLens.importConnections', async () => {
       const files = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { JSON: ['json'] } });
       if (!files?.[0]) {
         return;

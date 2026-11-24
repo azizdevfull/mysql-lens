@@ -9,7 +9,7 @@ export interface HistoryEntry {
   ms: number;
 }
 
-const KEY = 'mysqlStudio.history';
+const KEY = 'mysqlLens.history';
 
 export class QueryHistory {
   constructor(private readonly ctx: vscode.ExtensionContext) {}
@@ -19,7 +19,7 @@ export class QueryHistory {
   }
 
   async add(e: HistoryEntry): Promise<void> {
-    const max = vscode.workspace.getConfiguration('mysqlStudio').get<number>('historySize', 500);
+    const max = vscode.workspace.getConfiguration('mysqlLens').get<number>('historySize', 500);
     const all = this.list().filter((x) => !(x.sql === e.sql && x.connName === e.connName));
     all.unshift(e);
     await this.ctx.globalState.update(KEY, all.slice(0, max));

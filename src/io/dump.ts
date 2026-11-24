@@ -70,7 +70,7 @@ function stripDefiner(sql: string): string {
 }
 
 function header(o: DumpOptions): string {
-  return `-- MySQL Studio dump
+  return `-- MySQL Lens dump
 -- Server version: ${o.version}
 -- Database: ${o.database}
 -- Generated: ${new Date().toISOString()}

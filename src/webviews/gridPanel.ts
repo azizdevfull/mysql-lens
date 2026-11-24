@@ -42,7 +42,7 @@ abstract class GridPanel implements vscode.Disposable {
   }
 
   protected notifyError(e: unknown): void {
-    void vscode.window.showErrorMessage(`MySQL Studio: ${errorText(e)}`);
+    void vscode.window.showErrorMessage(`MySQL Lens: ${errorText(e)}`);
   }
 
   private async onMessage(m: GridToExtension): Promise<void> {
@@ -101,7 +101,7 @@ export class ResultsPanel extends GridPanel {
     title: string,
     private readonly onClosed: () => void,
   ) {
-    super(ctx, 'mysqlStudio.results', title, 'panel', vscode.ViewColumn.Beside);
+    super(ctx, 'mysqlLens.results', title, 'panel', vscode.ViewColumn.Beside);
   }
 
   get isRunning(): boolean {
@@ -122,7 +122,7 @@ export class ResultsPanel extends GridPanel {
     this.running = true;
     this.cancelled = false;
     this.results = [];
-    const maxRows = vscode.workspace.getConfiguration('mysqlStudio').get<number>('maxRows', 5000);
+    const maxRows = vscode.workspace.getConfiguration('mysqlLens').get<number>('maxRows', 5000);
     this.post({
       type: 'init',
       mode: 'results',
@@ -165,7 +165,7 @@ export class ResultsPanel extends GridPanel {
         return;
       case 'rerun':
         if (this.lastRun) {
-          await vscode.commands.executeCommand('mysqlStudio.rerun', this);
+          await vscode.commands.executeCommand('mysqlLens.rerun', this);
         }
         return;
       case 'export':
@@ -273,11 +273,11 @@ export class TablePanel extends GridPanel {
     private readonly isView: boolean,
     key: string,
   ) {
-    super(ctx, 'mysqlStudio.table', table, 'table', vscode.ViewColumn.Active);
+    super(ctx, 'mysqlLens.table', table, 'table', vscode.ViewColumn.Active);
     this.key = key;
     this.state = {
       page: 0,
-      pageSize: vscode.workspace.getConfiguration('mysqlStudio').get<number>('pageSize', 200),
+      pageSize: vscode.workspace.getConfiguration('mysqlLens').get<number>('pageSize', 200),
       sort: null,
       filter: '',
     };
@@ -306,7 +306,7 @@ export class TablePanel extends GridPanel {
 
   /** Runs SQL typed in the panel's query editor. */
   private async runQuery(sql: string): Promise<void> {
-    const pageSize = vscode.workspace.getConfiguration('mysqlStudio').get<number>('pageSize', 200);
+    const pageSize = vscode.workspace.getConfiguration('mysqlLens').get<number>('pageSize', 200);
     const simple = parseTableQuery(sql, this.db, this.table, pageSize);
     if (simple) {
       this.customSql = null;
@@ -325,7 +325,7 @@ export class TablePanel extends GridPanel {
         conn.on('end', () => (this.session = undefined));
         this.session = conn;
       }
-      const maxRows = vscode.workspace.getConfiguration('mysqlStudio').get<number>('maxRows', 5000);
+      const maxRows = vscode.workspace.getConfiguration('mysqlLens').get<number>('maxRows', 5000);
       const started = Date.now();
       let shown: ResultSet | undefined;
       const messages: string[] = [];

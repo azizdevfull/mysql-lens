@@ -3,7 +3,9 @@
 !dist/webview/*.js
 !dist/webview/*.css
 !dist/webview/*.ttf
-!media/**
+!media/*.svg
+!media/icon.png
+!CHANGELOG.md
 !package.json
 !README.md
 !LICENSE

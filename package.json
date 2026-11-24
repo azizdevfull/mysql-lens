@@ -1,11 +1,18 @@
 {
-  "name": "mysql-studio",
-  "displayName": "MySQL Studio",
-  "description": "Unlimited MySQL / MariaDB connections with SSH tunnel, data editor, import and export.",
+  "name": "mysql-lens",
+  "displayName": "MySQL Lens",
+  "description": "MySQL & MariaDB client for VS Code with unlimited connections, SSH tunnels, an editable data grid, SQL autocomplete, and import/export (CSV, Excel, JSON, SQL dump).",
   "version": "0.1.0",
-  "publisher": "local",
+  "publisher": "azizdevfull",
   "license": "MIT",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/azizdevfull/mysql-lens.git"
+  },
+  "homepage": "https://github.com/azizdevfull/mysql-lens#readme",
+  "bugs": {
+    "url": "https://github.com/azizdevfull/mysql-lens/issues"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -18,7 +25,13 @@
     "mariadb",
     "database",
     "sql",
-    "ssh"
+    "ssh",
+    "sql client",
+    "database client",
+    "export",
+    "import",
+    "csv",
+    "excel"
   ],
   "icon": "media/icon.png",
   "main": "./dist/extension.js",
@@ -29,16 +42,16 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "mysqlStudio",
-          "title": "MySQL Studio",
+          "id": "mysqlLens",
+          "title": "MySQL Lens",
           "icon": "media/activity.svg"
         }
       ]
     },
     "views": {
-      "mysqlStudio": [
+      "mysqlLens": [
         {
-          "id": "mysqlStudio.connections",
+          "id": "mysqlLens.connections",
           "name": "Connections",
           "icon": "media/activity.svg"
         }
@@ -46,165 +59,165 @@
     },
     "viewsWelcome": [
       {
-        "view": "mysqlStudio.connections",
-        "contents": "No connections yet.\n[$(add) Add Connection](command:mysqlStudio.addConnection)\n[$(cloud-download) Import Connections](command:mysqlStudio.importConnections)"
+        "view": "mysqlLens.connections",
+        "contents": "No connections yet.\n[$(add) Add Connection](command:mysqlLens.addConnection)\n[$(cloud-download) Import Connections](command:mysqlLens.importConnections)"
       }
     ],
     "commands": [
       {
-        "command": "mysqlStudio.addConnection",
+        "command": "mysqlLens.addConnection",
         "title": "Add Connection",
         "category": "MySQL",
         "icon": "$(add)"
       },
       {
-        "command": "mysqlStudio.refresh",
+        "command": "mysqlLens.refresh",
         "title": "Refresh",
         "category": "MySQL",
         "icon": "$(refresh)"
       },
       {
-        "command": "mysqlStudio.editConnection",
+        "command": "mysqlLens.editConnection",
         "title": "Edit Connection",
         "category": "MySQL",
         "icon": "$(edit)"
       },
       {
-        "command": "mysqlStudio.duplicateConnection",
+        "command": "mysqlLens.duplicateConnection",
         "title": "Duplicate Connection",
         "category": "MySQL"
       },
       {
-        "command": "mysqlStudio.deleteConnection",
+        "command": "mysqlLens.deleteConnection",
         "title": "Delete Connection",
         "category": "MySQL",
         "icon": "$(trash)"
       },
       {
-        "command": "mysqlStudio.connect",
+        "command": "mysqlLens.connect",
         "title": "Connect",
         "category": "MySQL",
         "icon": "$(plug)"
       },
       {
-        "command": "mysqlStudio.disconnect",
+        "command": "mysqlLens.disconnect",
         "title": "Disconnect",
         "category": "MySQL",
         "icon": "$(debug-disconnect)"
       },
       {
-        "command": "mysqlStudio.newQuery",
+        "command": "mysqlLens.newQuery",
         "title": "New Query",
         "category": "MySQL",
         "icon": "$(new-file)"
       },
       {
-        "command": "mysqlStudio.runStatement",
+        "command": "mysqlLens.runStatement",
         "title": "Run Statement at Cursor",
         "category": "MySQL",
         "icon": "$(play)"
       },
       {
-        "command": "mysqlStudio.runAll",
+        "command": "mysqlLens.runAll",
         "title": "Run All Statements",
         "category": "MySQL",
         "icon": "$(run-all)"
       },
       {
-        "command": "mysqlStudio.selectConnection",
+        "command": "mysqlLens.selectConnection",
         "title": "Select Connection and Database for Editor",
         "category": "MySQL",
         "icon": "$(database)"
       },
       {
-        "command": "mysqlStudio.openTable",
+        "command": "mysqlLens.openTable",
         "title": "Open Table Data",
         "category": "MySQL",
         "icon": "$(table)"
       },
       {
-        "command": "mysqlStudio.showDdl",
+        "command": "mysqlLens.showDdl",
         "title": "Show Definition (DDL)",
         "category": "MySQL",
         "icon": "$(code)"
       },
       {
-        "command": "mysqlStudio.generateSelect",
+        "command": "mysqlLens.generateSelect",
         "title": "Generate SELECT",
         "category": "MySQL"
       },
       {
-        "command": "mysqlStudio.generateInsert",
+        "command": "mysqlLens.generateInsert",
         "title": "Generate INSERT",
         "category": "MySQL"
       },
       {
-        "command": "mysqlStudio.generateUpdate",
+        "command": "mysqlLens.generateUpdate",
         "title": "Generate UPDATE",
         "category": "MySQL"
       },
       {
-        "command": "mysqlStudio.copyName",
+        "command": "mysqlLens.copyName",
         "title": "Copy Name",
         "category": "MySQL"
       },
       {
-        "command": "mysqlStudio.createDatabase",
+        "command": "mysqlLens.createDatabase",
         "title": "Create Database…",
         "category": "MySQL"
       },
       {
-        "command": "mysqlStudio.dropDatabase",
+        "command": "mysqlLens.dropDatabase",
         "title": "Drop Database…",
         "category": "MySQL"
       },
       {
-        "command": "mysqlStudio.truncateTable",
+        "command": "mysqlLens.truncateTable",
         "title": "Truncate Table…",
         "category": "MySQL"
       },
       {
-        "command": "mysqlStudio.dropObject",
+        "command": "mysqlLens.dropObject",
         "title": "Drop…",
         "category": "MySQL"
       },
       {
-        "command": "mysqlStudio.exportDatabase",
+        "command": "mysqlLens.exportDatabase",
         "title": "Export Database (SQL Dump)…",
         "category": "MySQL",
         "icon": "$(cloud-upload)"
       },
       {
-        "command": "mysqlStudio.exportTable",
+        "command": "mysqlLens.exportTable",
         "title": "Export Table Data…",
         "category": "MySQL",
         "icon": "$(cloud-upload)"
       },
       {
-        "command": "mysqlStudio.importSql",
+        "command": "mysqlLens.importSql",
         "title": "Import SQL File…",
         "category": "MySQL",
         "icon": "$(cloud-download)"
       },
       {
-        "command": "mysqlStudio.importData",
+        "command": "mysqlLens.importData",
         "title": "Import Data (CSV, JSON, Excel)…",
         "category": "MySQL",
         "icon": "$(cloud-download)"
       },
       {
-        "command": "mysqlStudio.queryHistory",
+        "command": "mysqlLens.queryHistory",
         "title": "Query History",
         "category": "MySQL",
         "icon": "$(history)"
       },
       {
-        "command": "mysqlStudio.exportConnections",
+        "command": "mysqlLens.exportConnections",
         "title": "Export Connections…",
         "category": "MySQL"
       },
       {
-        "command": "mysqlStudio.importConnections",
+        "command": "mysqlLens.importConnections",
         "title": "Import Connections…",
         "category": "MySQL"
       }
@@ -212,273 +225,273 @@
     "menus": {
       "view/title": [
         {
-          "command": "mysqlStudio.addConnection",
-          "when": "view == mysqlStudio.connections",
+          "command": "mysqlLens.addConnection",
+          "when": "view == mysqlLens.connections",
           "group": "navigation@1"
         },
         {
-          "command": "mysqlStudio.refresh",
-          "when": "view == mysqlStudio.connections",
+          "command": "mysqlLens.refresh",
+          "when": "view == mysqlLens.connections",
           "group": "navigation@2"
         },
         {
-          "command": "mysqlStudio.queryHistory",
-          "when": "view == mysqlStudio.connections",
+          "command": "mysqlLens.queryHistory",
+          "when": "view == mysqlLens.connections",
           "group": "navigation@3"
         },
         {
-          "command": "mysqlStudio.importConnections",
-          "when": "view == mysqlStudio.connections",
+          "command": "mysqlLens.importConnections",
+          "when": "view == mysqlLens.connections",
           "group": "1_io@1"
         },
         {
-          "command": "mysqlStudio.exportConnections",
-          "when": "view == mysqlStudio.connections",
+          "command": "mysqlLens.exportConnections",
+          "when": "view == mysqlLens.connections",
           "group": "1_io@2"
         }
       ],
       "view/item/context": [
         {
-          "command": "mysqlStudio.newQuery",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(connection|database)/",
+          "command": "mysqlLens.newQuery",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(connection|database)/",
           "group": "inline@1"
         },
         {
-          "command": "mysqlStudio.connect",
-          "when": "view == mysqlStudio.connections && viewItem == connection.off",
+          "command": "mysqlLens.connect",
+          "when": "view == mysqlLens.connections && viewItem == connection.off",
           "group": "inline@2"
         },
         {
-          "command": "mysqlStudio.disconnect",
-          "when": "view == mysqlStudio.connections && viewItem == connection.on",
+          "command": "mysqlLens.disconnect",
+          "when": "view == mysqlLens.connections && viewItem == connection.on",
           "group": "inline@2"
         },
         {
-          "command": "mysqlStudio.openTable",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view)$/",
+          "command": "mysqlLens.openTable",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(table|view)$/",
           "group": "inline@1"
         },
         {
-          "command": "mysqlStudio.connect",
-          "when": "view == mysqlStudio.connections && viewItem == connection.off",
+          "command": "mysqlLens.connect",
+          "when": "view == mysqlLens.connections && viewItem == connection.off",
           "group": "1_conn@1"
         },
         {
-          "command": "mysqlStudio.disconnect",
-          "when": "view == mysqlStudio.connections && viewItem == connection.on",
+          "command": "mysqlLens.disconnect",
+          "when": "view == mysqlLens.connections && viewItem == connection.on",
           "group": "1_conn@1"
         },
         {
-          "command": "mysqlStudio.newQuery",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(connection|database)/",
+          "command": "mysqlLens.newQuery",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(connection|database)/",
           "group": "1_conn@2"
         },
         {
-          "command": "mysqlStudio.editConnection",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^connection/",
+          "command": "mysqlLens.editConnection",
+          "when": "view == mysqlLens.connections && viewItem =~ /^connection/",
           "group": "2_edit@1"
         },
         {
-          "command": "mysqlStudio.duplicateConnection",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^connection/",
+          "command": "mysqlLens.duplicateConnection",
+          "when": "view == mysqlLens.connections && viewItem =~ /^connection/",
           "group": "2_edit@2"
         },
         {
-          "command": "mysqlStudio.createDatabase",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^connection/",
+          "command": "mysqlLens.createDatabase",
+          "when": "view == mysqlLens.connections && viewItem =~ /^connection/",
           "group": "2_edit@3"
         },
         {
-          "command": "mysqlStudio.deleteConnection",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^connection/",
+          "command": "mysqlLens.deleteConnection",
+          "when": "view == mysqlLens.connections && viewItem =~ /^connection/",
           "group": "9_danger@1"
         },
         {
-          "command": "mysqlStudio.exportDatabase",
-          "when": "view == mysqlStudio.connections && viewItem == database",
+          "command": "mysqlLens.exportDatabase",
+          "when": "view == mysqlLens.connections && viewItem == database",
           "group": "3_io@1"
         },
         {
-          "command": "mysqlStudio.importSql",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(connection|database)/",
+          "command": "mysqlLens.importSql",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(connection|database)/",
           "group": "3_io@2"
         },
         {
-          "command": "mysqlStudio.importData",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(database|table)$/",
+          "command": "mysqlLens.importData",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(database|table)$/",
           "group": "3_io@3"
         },
         {
-          "command": "mysqlStudio.dropDatabase",
-          "when": "view == mysqlStudio.connections && viewItem == database",
+          "command": "mysqlLens.dropDatabase",
+          "when": "view == mysqlLens.connections && viewItem == database",
           "group": "9_danger@1"
         },
         {
-          "command": "mysqlStudio.openTable",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view)$/",
+          "command": "mysqlLens.openTable",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(table|view)$/",
           "group": "1_open@1"
         },
         {
-          "command": "mysqlStudio.showDdl",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view|procedure|function|trigger)$/",
+          "command": "mysqlLens.showDdl",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(table|view|procedure|function|trigger)$/",
           "group": "1_open@2"
         },
         {
-          "command": "mysqlStudio.generateSelect",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view)$/",
+          "command": "mysqlLens.generateSelect",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(table|view)$/",
           "group": "2_gen@1"
         },
         {
-          "command": "mysqlStudio.generateInsert",
-          "when": "view == mysqlStudio.connections && viewItem == table",
+          "command": "mysqlLens.generateInsert",
+          "when": "view == mysqlLens.connections && viewItem == table",
           "group": "2_gen@2"
         },
         {
-          "command": "mysqlStudio.generateUpdate",
-          "when": "view == mysqlStudio.connections && viewItem == table",
+          "command": "mysqlLens.generateUpdate",
+          "when": "view == mysqlLens.connections && viewItem == table",
           "group": "2_gen@3"
         },
         {
-          "command": "mysqlStudio.exportTable",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view)$/",
+          "command": "mysqlLens.exportTable",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(table|view)$/",
           "group": "3_io@1"
         },
         {
-          "command": "mysqlStudio.copyName",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(database|table|view|column|procedure|function|trigger)$/",
+          "command": "mysqlLens.copyName",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(database|table|view|column|procedure|function|trigger)$/",
           "group": "4_copy@1"
         },
         {
-          "command": "mysqlStudio.truncateTable",
-          "when": "view == mysqlStudio.connections && viewItem == table",
+          "command": "mysqlLens.truncateTable",
+          "when": "view == mysqlLens.connections && viewItem == table",
           "group": "9_danger@1"
         },
         {
-          "command": "mysqlStudio.dropObject",
-          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view|procedure|function|trigger)$/",
+          "command": "mysqlLens.dropObject",
+          "when": "view == mysqlLens.connections && viewItem =~ /^(table|view|procedure|function|trigger)$/",
           "group": "9_danger@2"
         }
       ],
       "editor/title": [
         {
-          "command": "mysqlStudio.runStatement",
+          "command": "mysqlLens.runStatement",
           "when": "editorLangId == sql",
           "group": "navigation@1"
         },
         {
-          "command": "mysqlStudio.runAll",
+          "command": "mysqlLens.runAll",
           "when": "editorLangId == sql",
           "group": "navigation@2"
         }
       ],
       "editor/context": [
         {
-          "command": "mysqlStudio.runStatement",
+          "command": "mysqlLens.runStatement",
           "when": "editorLangId == sql",
           "group": "0_mysql@1"
         },
         {
-          "command": "mysqlStudio.runAll",
+          "command": "mysqlLens.runAll",
           "when": "editorLangId == sql",
           "group": "0_mysql@2"
         },
         {
-          "command": "mysqlStudio.selectConnection",
+          "command": "mysqlLens.selectConnection",
           "when": "editorLangId == sql",
           "group": "0_mysql@3"
         }
       ],
       "commandPalette": [
         {
-          "command": "mysqlStudio.editConnection",
+          "command": "mysqlLens.editConnection",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.duplicateConnection",
+          "command": "mysqlLens.duplicateConnection",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.deleteConnection",
+          "command": "mysqlLens.deleteConnection",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.disconnect",
+          "command": "mysqlLens.disconnect",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.openTable",
+          "command": "mysqlLens.openTable",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.showDdl",
+          "command": "mysqlLens.showDdl",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.generateSelect",
+          "command": "mysqlLens.generateSelect",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.generateInsert",
+          "command": "mysqlLens.generateInsert",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.generateUpdate",
+          "command": "mysqlLens.generateUpdate",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.copyName",
+          "command": "mysqlLens.copyName",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.dropDatabase",
+          "command": "mysqlLens.dropDatabase",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.truncateTable",
+          "command": "mysqlLens.truncateTable",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.dropObject",
+          "command": "mysqlLens.dropObject",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.exportTable",
+          "command": "mysqlLens.exportTable",
           "when": "false"
         },
         {
-          "command": "mysqlStudio.runStatement",
+          "command": "mysqlLens.runStatement",
           "when": "editorLangId == sql"
         },
         {
-          "command": "mysqlStudio.runAll",
+          "command": "mysqlLens.runAll",
           "when": "editorLangId == sql"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "mysqlStudio.runStatement",
+        "command": "mysqlLens.runStatement",
         "key": "ctrl+enter",
         "mac": "cmd+enter",
         "when": "editorTextFocus && editorLangId == sql"
       },
       {
-        "command": "mysqlStudio.runAll",
+        "command": "mysqlLens.runAll",
         "key": "ctrl+shift+enter",
         "mac": "cmd+shift+enter",
         "when": "editorTextFocus && editorLangId == sql"
       }
     ],
     "configuration": {
-      "title": "MySQL Studio",
+      "title": "MySQL Lens",
       "properties": {
-        "mysqlStudio.maxRows": {
+        "mysqlLens.maxRows": {
           "type": "number",
           "default": 5000,
           "minimum": 1,
           "description": "Maximum number of rows kept in the result grid for one query. Extra rows are counted but not shown."
         },
-        "mysqlStudio.pageSize": {
+        "mysqlLens.pageSize": {
           "type": "number",
           "default": 200,
           "enum": [
@@ -491,17 +504,17 @@
           ],
           "description": "Rows per page in the table data editor."
         },
-        "mysqlStudio.showSystemDatabases": {
+        "mysqlLens.showSystemDatabases": {
           "type": "boolean",
           "default": false,
           "description": "Show information_schema, mysql, performance_schema and sys in the tree."
         },
-        "mysqlStudio.confirmDangerousQueries": {
+        "mysqlLens.confirmDangerousQueries": {
           "type": "boolean",
           "default": true,
           "description": "Ask before running UPDATE or DELETE without a WHERE clause, DROP and TRUNCATE from the query editor."
         },
-        "mysqlStudio.historySize": {
+        "mysqlLens.historySize": {
           "type": "number",
           "default": 500,
           "description": "How many executed queries to keep in the query history."
@@ -515,7 +528,8 @@
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p webview-ui",
     "test:unit": "esbuild test/unit.test.ts --bundle --platform=node --format=cjs --outfile=test/out/unit.test.cjs --log-level=warning && node --test test/out/unit.test.cjs",
     "test": "esbuild test/unit.test.ts test/integration.test.ts --bundle --platform=node --format=cjs --outdir=test/out --out-extension:.js=.cjs --external:cpu-features --log-level=warning && node --test test/out/",
-    "package": "npm run typecheck && node esbuild.mjs --production && vsce package --no-dependencies --allow-missing-repository"
+    "package": "npm run typecheck && node esbuild.mjs --production && vsce package --no-dependencies",
+    "publish": "npm run typecheck && node esbuild.mjs --production && vsce publish --no-dependencies"
   },
   "dependencies": {
     "csv-parse": "^7.0.3",
@@ -531,5 +545,9 @@
     "@vscode/vsce": "^4.1.1",
     "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
+  },
+  "galleryBanner": {
+    "color": "#0f5c9e",
+    "theme": "dark"
   }
 }

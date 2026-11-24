@@ -246,7 +246,7 @@ class ResultsView {
     if (this.search.value.trim()) parts.unshift(`${formatNumber(shown)} matching`);
     this.statusLeft.replaceChildren(
       document.createTextNode(parts.join(' · ')),
-      r.truncated ? h('span.warn-text', null, icon('warning'), ` showing first ${formatNumber(r.rows.length)} — raise "mysqlStudio.maxRows" or add LIMIT`) : '',
+      r.truncated ? h('span.warn-text', null, icon('warning'), ` showing first ${formatNumber(r.rows.length)} — raise "mysqlLens.maxRows" or add LIMIT`) : '',
     );
     this.statusRight.textContent = selectionText(this.grid);
   }
