@@ -66,17 +66,26 @@ export class ConnectionTree {
 
   /** Re-fetches expanded nodes of one connection (or all). */
   async refresh(connId?: string): Promise<void> {
+    const wasConnected = new Map(this.roots.map((r) => [r.connId, !!r.connected]));
     this.roots = await invoke('tree.roots');
-    const keys = [...this.children.keys()].filter((k) => !connId || k.split('|')[1] === connId);
+    const affected = (k: string) => !connId || k.split('|')[1] === connId;
+    for (const r of this.roots) {
+      const k = key(r);
+      if (!affected(k) || r.connected) continue;
+      if (wasConnected.get(r.connId)) {
+        // Disconnected: collapse and forget its children.
+        this.expanded.delete(k);
+        for (const c of [...this.children.keys()]) if (c.split('|')[1] === r.connId) this.children.delete(c);
+      }
+      // A failed connect keeps its error node; re-fetching would reconnect.
+    }
+    const keys = [...this.children.keys()].filter((k) => affected(k) && this.roots.find((r) => r.connId === k.split('|')[1])?.connected);
     for (const k of keys) this.children.delete(k);
     const reloadUnder = async (nodes: TreeNode[]) => {
       for (const n of nodes) {
         const k = key(n);
-        if (this.expanded.has(k) && n.expandable && (!connId || n.connId === connId)) {
-          if (n.kind === 'connection' && !n.connected) {
-            this.expanded.delete(k);
-            continue;
-          }
+        if (this.expanded.has(k) && n.expandable && (!connId || n.connId === connId) && !this.children.has(k)) {
+          if (n.kind === 'connection' && !n.connected) continue;
           const kids = await invoke('tree.children', n);
           this.children.set(k, kids);
           await reloadUnder(kids);
@@ -86,6 +95,18 @@ export class ConnectionTree {
     this.render();
     await reloadUnder(this.roots);
     this.render();
+  }
+
+  /** Connects (errors show as a notification), then expands the connection. */
+  private async connect(n: TreeNode): Promise<void> {
+    const k = key(n);
+    this.children.delete(k);
+    this.expanded.delete(k);
+    await invoke('cmd', 'connect', n);
+    this.roots = await invoke('tree.roots');
+    const now = this.roots.find((r) => r.connId === n.connId);
+    if (now?.connected) await this.toggle(now);
+    else this.render();
   }
 
   private async toggle(n: TreeNode): Promise<void> {
@@ -158,7 +179,7 @@ export class ConnectionTree {
     const inline: HTMLElement[] = [];
     if (n.kind === 'connection') {
       inline.push(iconButton('new-file', 'New query', () => void invoke('cmd', 'newQuery', n)));
-      inline.push(n.connected ? iconButton('debug-disconnect', 'Disconnect', () => void invoke('cmd', 'disconnect', n)) : iconButton('plug', 'Connect', () => void this.toggle(n)));
+      inline.push(n.connected ? iconButton('debug-disconnect', 'Disconnect', () => void invoke('cmd', 'disconnect', n)) : iconButton('plug', 'Connect', () => void this.connect(n)));
     } else if (n.kind === 'database') {
       inline.push(iconButton('new-file', 'New query', () => void invoke('cmd', 'newQuery', n)));
     } else if (n.kind === 'table' || n.kind === 'view') {
@@ -231,7 +252,7 @@ export class ConnectionTree {
     switch (n.kind) {
       case 'connection':
         return [
-          n.connected ? c('Disconnect', 'disconnect', 'debug-disconnect') : { label: 'Connect', icon: 'plug', run: () => void this.toggle(n) },
+          n.connected ? c('Disconnect', 'disconnect', 'debug-disconnect') : { label: 'Connect', icon: 'plug', run: () => void this.connect(n) },
           c('New Query', 'newQuery', 'new-file'),
           c('Refresh', 'refresh', 'refresh'),
           null,

@@ -40,6 +40,8 @@ export class DesktopStore implements ConnectionStoreLike {
   private readonly secrets = new JsonFile<Record<string, string>>('secrets.json', {});
   private readonly changed = new Emitter<void>();
   readonly onDidChange = this.changed.event;
+  /** Called when a secret had to be stored without OS encryption. */
+  onInsecure?: () => void;
 
   list(): ConnectionConfig[] {
     const base = defaultConfig();
@@ -82,7 +84,13 @@ export class DesktopStore implements ConnectionStoreLike {
     const v = this.secrets.read()[`${kind}.${id}`];
     if (!v) return undefined;
     try {
-      return safeStorage.isEncryptionAvailable() && v.startsWith('enc:') ? safeStorage.decryptString(Buffer.from(v.slice(4), 'base64')) : undefined;
+      if (v.startsWith('enc:')) {
+        return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(Buffer.from(v.slice(4), 'base64')) : undefined;
+      }
+      if (v.startsWith('b64:')) {
+        return Buffer.from(v.slice(4), 'base64').toString('utf8');
+      }
+      return undefined;
     } catch {
       return undefined;
     }
@@ -91,10 +99,14 @@ export class DesktopStore implements ConnectionStoreLike {
   async setSecret(id: string, kind: SecretKind, value: string | undefined): Promise<void> {
     const s = this.secrets.read();
     const key = `${kind}.${id}`;
-    if (value && safeStorage.isEncryptionAvailable()) {
+    if (!value) {
+      delete s[key];
+    } else if (safeStorage.isEncryptionAvailable()) {
       s[key] = 'enc:' + safeStorage.encryptString(value).toString('base64');
     } else {
-      delete s[key];
+      // No OS keychain (e.g. Linux without libsecret): keep it usable, but only obfuscated.
+      s[key] = 'b64:' + Buffer.from(value, 'utf8').toString('base64');
+      this.onInsecure?.();
     }
     this.secrets.write(s);
   }

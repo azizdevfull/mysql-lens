@@ -160,9 +160,12 @@ export class SqlEditor {
     }
     // Trailing newline keeps the last empty line the same height as the textarea.
     this.hl.innerHTML = out + '\n';
-    const lines = Math.min(10, Math.max(1, text.split('\n').length));
+    const total = text.split('\n').length;
+    const lines = Math.min(10, Math.max(1, total));
     const pad = 12;
     this.el.style.height = `${lines * this.lineH + pad}px`;
+    // Only scroll vertically once the editor stops growing.
+    this.ta.style.overflowY = total > 10 ? 'auto' : 'hidden';
   }
 
   /* ----------------------------- autocomplete ----------------------------- */

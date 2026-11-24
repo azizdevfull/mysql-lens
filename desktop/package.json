@@ -61,15 +61,7 @@
       ],
       "icon": "build/icon.png",
       "category": "Development"
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "azizdevfull",
-        "repo": "mysql-lens",
-        "releaseType": "release"
-      }
-    ]
+    }
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

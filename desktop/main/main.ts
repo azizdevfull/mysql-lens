@@ -40,6 +40,12 @@ const fctx: flows.Ctx = { host, conns, schema, store };
 const send = (ev: ShellEvent) => host.send(ev);
 
 conns.onDidChangeState((connId) => send({ type: 'treeChanged', connId }));
+let insecureWarned = false;
+store.onInsecure = () => {
+  if (insecureWarned) return;
+  insecureWarned = true;
+  void host.warn('No OS keychain is available, so saved passwords are only obfuscated, not encrypted. Install gnome-keyring or KWallet for encryption, or turn off "Save password".');
+};
 store.onDidChange(() => send({ type: 'connections' }));
 
 /* ------------------------------------------------------------------ */
