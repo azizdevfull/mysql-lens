@@ -1,0 +1,2 @@
+window.onSend=(m)=>{if(m.type==='ready')emit({type:'load',isNew:true,data:{name:'',color:'charts.red',host:'10.0.0.15',port:3306,user:'app',password:'secret',savePassword:true,database:'shop',readOnly:false,connectTimeout:10,ssl:{enabled:false,rejectUnauthorized:true,ca:'',cert:'',key:''},ssh:{enabled:true,host:'bastion.example.uz',port:22,user:'ubuntu',auth:'privateKey',password:'',privateKeyPath:'~/.ssh/id_ed25519',passphrase:''}}});
+if(m.type==='test')setTimeout(()=>emit({type:'testResult',ok:true,message:'Connected. Server version 8.0.36'}),400)};

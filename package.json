@@ -1,0 +1,534 @@
+{
+  "name": "mysql-studio",
+  "displayName": "MySQL Studio",
+  "description": "Unlimited MySQL / MariaDB connections with SSH tunnel, data editor, import and export.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Data Science",
+    "Other"
+  ],
+  "keywords": [
+    "mysql",
+    "mariadb",
+    "database",
+    "sql",
+    "ssh"
+  ],
+  "icon": "media/icon.png",
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:sql"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mysqlStudio",
+          "title": "MySQL Studio",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "mysqlStudio": [
+        {
+          "id": "mysqlStudio.connections",
+          "name": "Connections",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "mysqlStudio.connections",
+        "contents": "No connections yet.\n[$(add) Add Connection](command:mysqlStudio.addConnection)\n[$(cloud-download) Import Connections](command:mysqlStudio.importConnections)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mysqlStudio.addConnection",
+        "title": "Add Connection",
+        "category": "MySQL",
+        "icon": "$(add)"
+      },
+      {
+        "command": "mysqlStudio.refresh",
+        "title": "Refresh",
+        "category": "MySQL",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mysqlStudio.editConnection",
+        "title": "Edit Connection",
+        "category": "MySQL",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "mysqlStudio.duplicateConnection",
+        "title": "Duplicate Connection",
+        "category": "MySQL"
+      },
+      {
+        "command": "mysqlStudio.deleteConnection",
+        "title": "Delete Connection",
+        "category": "MySQL",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mysqlStudio.connect",
+        "title": "Connect",
+        "category": "MySQL",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "mysqlStudio.disconnect",
+        "title": "Disconnect",
+        "category": "MySQL",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "mysqlStudio.newQuery",
+        "title": "New Query",
+        "category": "MySQL",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "mysqlStudio.runStatement",
+        "title": "Run Statement at Cursor",
+        "category": "MySQL",
+        "icon": "$(play)"
+      },
+      {
+        "command": "mysqlStudio.runAll",
+        "title": "Run All Statements",
+        "category": "MySQL",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "mysqlStudio.selectConnection",
+        "title": "Select Connection and Database for Editor",
+        "category": "MySQL",
+        "icon": "$(database)"
+      },
+      {
+        "command": "mysqlStudio.openTable",
+        "title": "Open Table Data",
+        "category": "MySQL",
+        "icon": "$(table)"
+      },
+      {
+        "command": "mysqlStudio.showDdl",
+        "title": "Show Definition (DDL)",
+        "category": "MySQL",
+        "icon": "$(code)"
+      },
+      {
+        "command": "mysqlStudio.generateSelect",
+        "title": "Generate SELECT",
+        "category": "MySQL"
+      },
+      {
+        "command": "mysqlStudio.generateInsert",
+        "title": "Generate INSERT",
+        "category": "MySQL"
+      },
+      {
+        "command": "mysqlStudio.generateUpdate",
+        "title": "Generate UPDATE",
+        "category": "MySQL"
+      },
+      {
+        "command": "mysqlStudio.copyName",
+        "title": "Copy Name",
+        "category": "MySQL"
+      },
+      {
+        "command": "mysqlStudio.createDatabase",
+        "title": "Create Database…",
+        "category": "MySQL"
+      },
+      {
+        "command": "mysqlStudio.dropDatabase",
+        "title": "Drop Database…",
+        "category": "MySQL"
+      },
+      {
+        "command": "mysqlStudio.truncateTable",
+        "title": "Truncate Table…",
+        "category": "MySQL"
+      },
+      {
+        "command": "mysqlStudio.dropObject",
+        "title": "Drop…",
+        "category": "MySQL"
+      },
+      {
+        "command": "mysqlStudio.exportDatabase",
+        "title": "Export Database (SQL Dump)…",
+        "category": "MySQL",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "mysqlStudio.exportTable",
+        "title": "Export Table Data…",
+        "category": "MySQL",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "mysqlStudio.importSql",
+        "title": "Import SQL File…",
+        "category": "MySQL",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "mysqlStudio.importData",
+        "title": "Import Data (CSV, JSON, Excel)…",
+        "category": "MySQL",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "mysqlStudio.queryHistory",
+        "title": "Query History",
+        "category": "MySQL",
+        "icon": "$(history)"
+      },
+      {
+        "command": "mysqlStudio.exportConnections",
+        "title": "Export Connections…",
+        "category": "MySQL"
+      },
+      {
+        "command": "mysqlStudio.importConnections",
+        "title": "Import Connections…",
+        "category": "MySQL"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "mysqlStudio.addConnection",
+          "when": "view == mysqlStudio.connections",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mysqlStudio.refresh",
+          "when": "view == mysqlStudio.connections",
+          "group": "navigation@2"
+        },
+        {
+          "command": "mysqlStudio.queryHistory",
+          "when": "view == mysqlStudio.connections",
+          "group": "navigation@3"
+        },
+        {
+          "command": "mysqlStudio.importConnections",
+          "when": "view == mysqlStudio.connections",
+          "group": "1_io@1"
+        },
+        {
+          "command": "mysqlStudio.exportConnections",
+          "when": "view == mysqlStudio.connections",
+          "group": "1_io@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mysqlStudio.newQuery",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(connection|database)/",
+          "group": "inline@1"
+        },
+        {
+          "command": "mysqlStudio.connect",
+          "when": "view == mysqlStudio.connections && viewItem == connection.off",
+          "group": "inline@2"
+        },
+        {
+          "command": "mysqlStudio.disconnect",
+          "when": "view == mysqlStudio.connections && viewItem == connection.on",
+          "group": "inline@2"
+        },
+        {
+          "command": "mysqlStudio.openTable",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "mysqlStudio.connect",
+          "when": "view == mysqlStudio.connections && viewItem == connection.off",
+          "group": "1_conn@1"
+        },
+        {
+          "command": "mysqlStudio.disconnect",
+          "when": "view == mysqlStudio.connections && viewItem == connection.on",
+          "group": "1_conn@1"
+        },
+        {
+          "command": "mysqlStudio.newQuery",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(connection|database)/",
+          "group": "1_conn@2"
+        },
+        {
+          "command": "mysqlStudio.editConnection",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^connection/",
+          "group": "2_edit@1"
+        },
+        {
+          "command": "mysqlStudio.duplicateConnection",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^connection/",
+          "group": "2_edit@2"
+        },
+        {
+          "command": "mysqlStudio.createDatabase",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^connection/",
+          "group": "2_edit@3"
+        },
+        {
+          "command": "mysqlStudio.deleteConnection",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^connection/",
+          "group": "9_danger@1"
+        },
+        {
+          "command": "mysqlStudio.exportDatabase",
+          "when": "view == mysqlStudio.connections && viewItem == database",
+          "group": "3_io@1"
+        },
+        {
+          "command": "mysqlStudio.importSql",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(connection|database)/",
+          "group": "3_io@2"
+        },
+        {
+          "command": "mysqlStudio.importData",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(database|table)$/",
+          "group": "3_io@3"
+        },
+        {
+          "command": "mysqlStudio.dropDatabase",
+          "when": "view == mysqlStudio.connections && viewItem == database",
+          "group": "9_danger@1"
+        },
+        {
+          "command": "mysqlStudio.openTable",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view)$/",
+          "group": "1_open@1"
+        },
+        {
+          "command": "mysqlStudio.showDdl",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view|procedure|function|trigger)$/",
+          "group": "1_open@2"
+        },
+        {
+          "command": "mysqlStudio.generateSelect",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view)$/",
+          "group": "2_gen@1"
+        },
+        {
+          "command": "mysqlStudio.generateInsert",
+          "when": "view == mysqlStudio.connections && viewItem == table",
+          "group": "2_gen@2"
+        },
+        {
+          "command": "mysqlStudio.generateUpdate",
+          "when": "view == mysqlStudio.connections && viewItem == table",
+          "group": "2_gen@3"
+        },
+        {
+          "command": "mysqlStudio.exportTable",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view)$/",
+          "group": "3_io@1"
+        },
+        {
+          "command": "mysqlStudio.copyName",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(database|table|view|column|procedure|function|trigger)$/",
+          "group": "4_copy@1"
+        },
+        {
+          "command": "mysqlStudio.truncateTable",
+          "when": "view == mysqlStudio.connections && viewItem == table",
+          "group": "9_danger@1"
+        },
+        {
+          "command": "mysqlStudio.dropObject",
+          "when": "view == mysqlStudio.connections && viewItem =~ /^(table|view|procedure|function|trigger)$/",
+          "group": "9_danger@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "mysqlStudio.runStatement",
+          "when": "editorLangId == sql",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mysqlStudio.runAll",
+          "when": "editorLangId == sql",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "mysqlStudio.runStatement",
+          "when": "editorLangId == sql",
+          "group": "0_mysql@1"
+        },
+        {
+          "command": "mysqlStudio.runAll",
+          "when": "editorLangId == sql",
+          "group": "0_mysql@2"
+        },
+        {
+          "command": "mysqlStudio.selectConnection",
+          "when": "editorLangId == sql",
+          "group": "0_mysql@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "mysqlStudio.editConnection",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.duplicateConnection",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.deleteConnection",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.disconnect",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.openTable",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.showDdl",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.generateSelect",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.generateInsert",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.generateUpdate",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.copyName",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.dropDatabase",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.truncateTable",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.dropObject",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.exportTable",
+          "when": "false"
+        },
+        {
+          "command": "mysqlStudio.runStatement",
+          "when": "editorLangId == sql"
+        },
+        {
+          "command": "mysqlStudio.runAll",
+          "when": "editorLangId == sql"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "mysqlStudio.runStatement",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == sql"
+      },
+      {
+        "command": "mysqlStudio.runAll",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorTextFocus && editorLangId == sql"
+      }
+    ],
+    "configuration": {
+      "title": "MySQL Studio",
+      "properties": {
+        "mysqlStudio.maxRows": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 1,
+          "description": "Maximum number of rows kept in the result grid for one query. Extra rows are counted but not shown."
+        },
+        "mysqlStudio.pageSize": {
+          "type": "number",
+          "default": 200,
+          "enum": [
+            50,
+            100,
+            200,
+            500,
+            1000,
+            5000
+          ],
+          "description": "Rows per page in the table data editor."
+        },
+        "mysqlStudio.showSystemDatabases": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show information_schema, mysql, performance_schema and sys in the tree."
+        },
+        "mysqlStudio.confirmDangerousQueries": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask before running UPDATE or DELETE without a WHERE clause, DROP and TRUNCATE from the query editor."
+        },
+        "mysqlStudio.historySize": {
+          "type": "number",
+          "default": 500,
+          "description": "How many executed queries to keep in the query history."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p webview-ui",
+    "test": "esbuild test/integration.test.ts --bundle --platform=node --format=cjs --outfile=test/out/integration.test.cjs --external:cpu-features --log-level=warning && node --test test/out/",
+    "package": "npm run typecheck && node esbuild.mjs --production && vsce package --no-dependencies --allow-missing-repository"
+  },
+  "dependencies": {
+    "csv-parse": "^7.0.3",
+    "exceljs": "^4.4.0",
+    "mysql2": "^3.24.6",
+    "ssh2": "^1.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/ssh2": "^1.15.6",
+    "@types/vscode": "^1.90.0",
+    "@vscode/codicons": "^0.0.36",
+    "@vscode/vsce": "^4.1.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3"
+  }
+}

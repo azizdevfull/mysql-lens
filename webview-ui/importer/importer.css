@@ -1,0 +1,327 @@
+.importer {
+  height: 100vh;
+  overflow: auto;
+  padding: 24px;
+}
+
+.importer > * {
+  max-width: 980px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.head h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.head p {
+  margin: 2px 0 0;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0f7a5c, #1eb88a);
+  color: #fff;
+}
+
+.logo .codicon {
+  font-size: 24px !important;
+}
+
+.card {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--vscode-editorWidget-background, transparent);
+}
+
+.card.disabled {
+  opacity: 0.5;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.card:not(.disabled) .card-head {
+  border-bottom: 1px solid var(--border);
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.card-title {
+  font-weight: 600;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.file-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.opt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.opt.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.opt input[type='text'],
+.opt input[type='number'] {
+  width: 280px;
+}
+
+.table-select {
+  min-width: 280px;
+  max-width: 420px;
+}
+
+.opt {
+  align-items: flex-start;
+}
+
+.preview-wrap {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+table.preview {
+  width: max-content;
+  min-width: 100%;
+}
+
+table.preview th,
+table.preview td {
+  max-width: 260px;
+  padding: 4px 10px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+table.preview th {
+  position: sticky;
+  top: 0;
+  background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background));
+  font-weight: 600;
+}
+
+.ptype {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+table.preview .idx {
+  color: var(--vscode-editorLineNumber-foreground, var(--muted));
+  text-align: right;
+}
+
+table.preview td.null {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.preview-note {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.target-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.segmented {
+  display: inline-flex;
+  height: 28px;
+  border: 1px solid var(--input-border, var(--border));
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--vscode-foreground);
+  cursor: pointer;
+}
+
+.segmented button:last-child {
+  border-right: none;
+}
+
+.segmented button.on {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+table.mapping {
+  width: 100%;
+}
+
+table.mapping th {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 500;
+  text-align: left;
+}
+
+table.mapping td {
+  padding: 4px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+table.mapping tr.skipped td {
+  opacity: 0.55;
+}
+
+table.mapping select,
+table.mapping input[type='text'] {
+  width: 100%;
+  min-width: 160px;
+}
+
+table.mapping .arrow {
+  color: var(--muted);
+  width: 20px;
+}
+
+table.mapping .pk {
+  margin-right: 4px;
+  color: var(--vscode-charts-yellow, #e2c08d);
+}
+
+.sample {
+  max-width: 260px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.note {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.run-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn.big {
+  height: 32px;
+  padding: 0 20px;
+  font-weight: 600;
+}
+
+.progress {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.result.ok {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+
+.result.ok > .codicon {
+  color: var(--ok);
+}
+
+.result.err {
+  border-color: var(--err);
+  background: color-mix(in srgb, var(--err) 10%, transparent);
+}
+
+.result.err > .codicon {
+  color: var(--err);
+}
