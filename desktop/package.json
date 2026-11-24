@@ -1,0 +1,81 @@
+{
+  "name": "mysql-lens-desktop",
+  "productName": "MySQL Lens",
+  "version": "0.1.0",
+  "description": "MySQL & MariaDB client with unlimited connections, SSH tunnels, an editable data grid, SQL autocomplete and import/export.",
+  "author": "Azizbek Isroilov",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "build:prod": "node esbuild.mjs --production",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc --noEmit -p .",
+    "dist:win": "npm run build:prod && electron-builder --win --publish never",
+    "release:win": "npm run build:prod && electron-builder --win --publish always"
+  },
+  "build": {
+    "appId": "uz.azizdev.mysqllens",
+    "productName": "MySQL Lens",
+    "artifactName": "MySQL-Lens-${version}-${arch}-${os}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "MySQL Lens"
+    },
+    "portable": {
+      "artifactName": "MySQL-Lens-${version}-portable.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png",
+      "category": "Development"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "azizdevfull",
+        "repo": "mysql-lens",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
+    "monaco-editor": "^0.52.2",
+    "typescript": "^5.9.3"
+  }
+}

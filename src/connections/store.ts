@@ -4,7 +4,8 @@ import { ConnectionConfig, defaultConfig } from './types';
 
 const KEY = 'mysqlLens.connections';
 
-export type SecretKind = 'password' | 'sshPassword' | 'sshPassphrase';
+import type { SecretKind } from './manager';
+export type { SecretKind };
 
 /** Persists connection settings in globalState and secrets in SecretStorage. */
 export class ConnectionStore {

@@ -4,7 +4,8 @@ import { ConnectionManager } from '../connections/manager';
 import { ConnectionStore } from '../connections/store';
 import { SchemaService } from '../schema';
 import { ResultsPanel } from '../webviews/gridPanel';
-import { errorText } from '../webviews/connectionForm';
+import { errorText } from '../core/errors';
+import type { UiHost } from '../core/host';
 import { splitSql, statementAt, Statement } from './splitter';
 import { QueryHistory } from './history';
 
@@ -40,6 +41,7 @@ export class EditorSessions implements vscode.Disposable {
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
+    private readonly host: UiHost,
     private readonly store: ConnectionStore,
     private readonly conns: ConnectionManager,
     private readonly schema: SchemaService,
@@ -274,7 +276,7 @@ export class EditorSessions implements vscode.Disposable {
 
     if (!session.results) {
       const name = uri.scheme === 'untitled' ? uri.path : uri.path.split('/').pop();
-      session.results = new ResultsPanel(this.ctx, this.conns, `Results: ${name}`, () => {
+      session.results = new ResultsPanel(this.ctx, this.host, this.conns, `Results: ${name}`, () => {
         if (this.sessions.get(key)) {
           this.sessions.get(key)!.results = undefined;
         }

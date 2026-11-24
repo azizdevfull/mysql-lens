@@ -1,4 +1,3 @@
-import * as vscode from 'vscode';
 import { ConnectionManager } from './connections/manager';
 import type { ColumnInfo } from './shared/protocol';
 import { NUMERIC_TYPES, qualified } from './sql';
@@ -41,7 +40,10 @@ export interface RoutineMeta {
 export class SchemaService {
   private readonly cache = new Map<string, Promise<unknown>>();
 
-  constructor(private readonly conns: ConnectionManager) {
+  constructor(
+    private readonly conns: ConnectionManager,
+    private readonly showSystemDatabases: () => boolean = () => false,
+  ) {
     conns.onDidChangeState((id) => this.invalidate(id));
   }
 
@@ -67,7 +69,7 @@ export class SchemaService {
   databases(connId: string): Promise<string[]> {
     return this.cached(`${connId}|dbs`, async () => {
       const rows = await this.conns.query<{ Database: string }[]>(connId, 'SHOW DATABASES');
-      const showSystem = vscode.workspace.getConfiguration('mysqlLens').get<boolean>('showSystemDatabases', false);
+      const showSystem = this.showSystemDatabases();
       return rows.map((r) => r.Database).filter((d) => showSystem || !SYSTEM_DATABASES.has(d.toLowerCase()));
     });
   }

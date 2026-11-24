@@ -1,6 +1,5 @@
-import * as vscode from 'vscode';
 import * as mysql from 'mysql2';
-import { ConnectionStore } from './store';
+import { Emitter } from '../core/errors';
 import { Tunnel } from './tunnel';
 import { ConnectionConfig } from './types';
 import { buildOptions, connectOnce, openTunnelFor, QueryRows, runQuery, Secrets } from './driver';
@@ -18,14 +17,32 @@ interface Session {
   options: mysql.ConnectionOptions;
 }
 
-export class ConnectionManager implements vscode.Disposable {
+export type SecretKind = 'password' | 'sshPassword' | 'sshPassphrase';
+
+/** Where the manager reads connection settings and saved secrets from. */
+export interface ConnectionSource {
+  get(id: string): ConnectionConfig | undefined;
+  getSecret(id: string, kind: SecretKind): PromiseLike<string | undefined>;
+}
+
+export interface ManagerHooks {
+  /** Asks the user for a password that is not saved. Throws or rejects to cancel. */
+  askSecret(prompt: string): Promise<string>;
+  /** Called when an SSH tunnel drops while connected. */
+  onTunnelClosed?(connectionName: string): void;
+}
+
+export class ConnectionManager {
   private readonly sessions = new Map<string, Promise<Session>>();
   /** Passwords typed by the user for connections that do not save them. */
   private readonly typedSecrets = new Map<string, Secrets>();
-  private readonly changed = new vscode.EventEmitter<string>();
+  private readonly changed = new Emitter<string>();
   readonly onDidChangeState = this.changed.event;
 
-  constructor(private readonly store: ConnectionStore) {}
+  constructor(
+    private readonly store: ConnectionSource,
+    private readonly hooks: ManagerHooks,
+  ) {}
 
   isConnected(id: string): boolean {
     return this.sessions.has(id);
@@ -116,10 +133,10 @@ export class ConnectionManager implements vscode.Disposable {
       sshPassphrase: (await this.store.getSecret(config.id, 'sshPassphrase')) ?? typed.sshPassphrase,
     };
     if (!config.savePassword && secrets.password === undefined) {
-      secrets.password = await askSecret(`MySQL password for ${config.user}@${config.host}`);
+      secrets.password = await this.hooks.askSecret(`MySQL password for ${config.user}@${config.host}`);
     }
     if (config.ssh.enabled && config.ssh.auth === 'password' && secrets.sshPassword === undefined) {
-      secrets.sshPassword = await askSecret(`SSH password for ${config.ssh.user}@${config.ssh.host}`);
+      secrets.sshPassword = await this.hooks.askSecret(`SSH password for ${config.ssh.user}@${config.ssh.host}`);
     }
     if (!config.savePassword) {
       this.typedSecrets.set(config.id, secrets);
@@ -133,7 +150,7 @@ export class ConnectionManager implements vscode.Disposable {
     const tunnel = await openTunnelFor(config, secrets, () => {
       if (this.sessions.has(id)) {
         void this.disconnect(id);
-        void vscode.window.showWarningMessage(`MySQL Lens: SSH tunnel for "${config.name}" closed.`);
+        this.hooks.onTunnelClosed?.(config.name);
       }
     });
     try {
@@ -165,12 +182,4 @@ export class ConnectionManager implements vscode.Disposable {
       void this.disconnect(id);
     }
   }
-}
-
-async function askSecret(prompt: string): Promise<string> {
-  const v = await vscode.window.showInputBox({ prompt, password: true, ignoreFocusOut: true });
-  if (v === undefined) {
-    throw new Error('Cancelled.');
-  }
-  return v;
 }
