@@ -28,7 +28,14 @@ try {
     }
   }
   if (!browser) throw new Error('WebView2 did not expose the debugging port');
-  const page = browser.contexts()[0].pages()[0];
+  // The debugging port can answer before the app's page exists; wait for it.
+  let page;
+  for (let i = 0; i < 60 && !page; i++) {
+    page = browser.contexts().flatMap((c) => c.pages()).find((p) => !p.url().startsWith('devtools://'));
+    if (!page) await new Promise((r) => setTimeout(r, 500));
+  }
+  if (!page) throw new Error('The app window did not appear');
+  note(`page: ${page.url()}`);
   page.on('pageerror', (e) => note('pageerror: ' + e.message));
   page.on('console', (m) => m.type() === 'error' && note('console.error: ' + m.text()));
   await page.waitForSelector('text=Fast, lightweight', { timeout: 30000 });
