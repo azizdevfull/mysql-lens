@@ -261,6 +261,20 @@ export const mockBackend: Backend = {
     return { rows: 1240, path: `C:\\Users\\you\\Downloads\\${table}.${format === 'markdown' ? 'md' : format}` };
   },
   async revealFile() {},
+  async dumpDatabase(_id, o, onProgress) {
+    for (let i = 0; i < o.tables.length; i++) {
+      onProgress(`${o.tables[i]} (${i + 1}/${o.tables.length})`);
+      await delay(250);
+    }
+    return { tables: o.tables.length, rows: 10002, path: `C:\\Users\\you\\Downloads\\${o.database}.sql${o.gzip ? '.gz' : ''}` };
+  },
+  async importSql(_id, _db, _c, onProgress) {
+    for (let i = 1; i <= 4; i++) {
+      onProgress(`${i * 25}% · ${i * 120} statements`);
+      await delay(300);
+    }
+    return { statements: 480, errors: [], file: 'backup.sql' };
+  },
   async applyChanges(id, name, table, _columns, changes: RowChange[]) {
     await delay(200);
     const t = db(id, name)[table];

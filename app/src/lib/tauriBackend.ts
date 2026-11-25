@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { save } from '@tauri-apps/plugin-dialog';
+import { listen } from '@tauri-apps/api/event';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import type { Backend, ExportFormat } from './types';
 
@@ -37,4 +38,32 @@ export const tauriBackend: Backend = {
     return { rows, path };
   },
   revealFile: (path) => revealItemInDir(path),
+  async dumpDatabase(id, o, onProgress) {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '').replace(/^(\d{8})/, '$1_');
+    const path = await save({ defaultPath: `${o.database}_${stamp}.sql${o.gzip ? '.gz' : ''}`, filters: o.gzip ? [{ name: 'Gzipped SQL', extensions: ['gz'] }] : [{ name: 'SQL dump', extensions: ['sql'] }] });
+    if (!path) return null;
+    const off = await listen<{ table: string; index: number; count: number; rows: number }>('dump-progress', (e) =>
+      onProgress(`${e.payload.table} (${e.payload.index + 1}/${e.payload.count})${e.payload.rows ? ` · ${e.payload.rows.toLocaleString()} rows` : ''}`),
+    );
+    try {
+      const { gzip: _gzip, ...opts } = o;
+      const r = await invoke<{ tables: number; rows: number }>('dump_database', { id, opts, path });
+      return { ...r, path };
+    } finally {
+      off();
+    }
+  },
+  async importSql(id, db, continueOnError, onProgress) {
+    const file = await open({ multiple: false, filters: [{ name: 'SQL files', extensions: ['sql', 'gz'] }] });
+    if (!file || Array.isArray(file)) return null;
+    const off = await listen<{ read: number; total: number; statements: number }>('import-progress', (e) =>
+      onProgress(`${Math.round((e.payload.read / Math.max(1, e.payload.total)) * 100)}% · ${e.payload.statements.toLocaleString()} statements`),
+    );
+    try {
+      const r = await invoke<{ statements: number; errors: string[] }>('import_sql', { id, db: db ?? null, path: file, continueOnError });
+      return { ...r, file: String(file).split(/[\\/]/).pop() ?? String(file) };
+    } finally {
+      off();
+    }
+  },
 };

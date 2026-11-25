@@ -134,6 +134,26 @@ async fn export_data(app: tauri::AppHandle, s: State<'_, AppState>, id: String, 
         .await
 }
 
+#[tauri::command]
+async fn dump_database(app: tauri::AppHandle, s: State<'_, AppState>, id: String, opts: lens_core::dump::DumpOptions, path: PathBuf) -> R<lens_core::dump::DumpResult> {
+    s.engine
+        .dump(&id, &opts, &path, |table, i, n, rows| {
+            let _ = app.emit("dump-progress", serde_json::json!({ "table": table, "index": i, "count": n, "rows": rows }));
+            true
+        })
+        .await
+}
+
+#[tauri::command]
+async fn import_sql(app: tauri::AppHandle, s: State<'_, AppState>, id: String, db: Option<String>, path: PathBuf, continue_on_error: bool) -> R<lens_core::dump::ImportResult> {
+    s.engine
+        .import_sql(&id, db.as_deref(), &path, continue_on_error, |read, total, statements| {
+            let _ = app.emit("import-progress", serde_json::json!({ "read": read, "total": total, "statements": statements }));
+            true
+        })
+        .await
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -159,7 +179,9 @@ pub fn run() {
             query,
             preview_changes,
             apply_changes,
-            export_data
+            export_data,
+            dump_database,
+            import_sql
         ])
         .run(tauri::generate_context!())
         .expect("error while running MySQL Lens");

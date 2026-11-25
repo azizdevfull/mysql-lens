@@ -103,4 +103,21 @@ export interface Backend {
   /** Asks where to save and exports a table (sql empty) or a query. Returns rows written, or null if cancelled. */
   exportData(id: string, db: string, table: string, sql: string, format: ExportFormat): Promise<{ rows: number; path: string } | null>;
   revealFile(path: string): Promise<void>;
+  /** Asks for a file and writes a SQL dump. Progress goes to `onProgress`. */
+  dumpDatabase(id: string, opts: DumpOptions, onProgress: (msg: string) => void): Promise<{ tables: number; rows: number; path: string } | null>;
+  /** Asks for a .sql/.sql.gz file and runs it. */
+  importSql(id: string, db: string | undefined, continueOnError: boolean, onProgress: (msg: string) => void): Promise<{ statements: number; errors: string[]; file: string } | null>;
+}
+
+export interface DumpOptions {
+  database: string;
+  tables: string[];
+  structure: boolean;
+  data: boolean;
+  dropObjects: boolean;
+  createDatabase: boolean;
+  views: boolean;
+  routines: boolean;
+  triggers: boolean;
+  gzip: boolean;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  AlertCircle, ChevronRight, Copy, Database, Eye, FilePlus2, FileCode2, FolderClosed, FunctionSquare, Loader2, Lock, Pencil, Plug, PlugZap, Plus, RefreshCw, Search, Server, Table2, Trash2, Workflow, Zap,
+  AlertCircle, ChevronRight, Copy, Database, Download, Eye, FilePlus2, FileCode2, FolderClosed, FunctionSquare, Loader2, Lock, Pencil, Plug, PlugZap, Plus, RefreshCw, Search, Server, Table2, Trash2, Upload, Workflow, Zap,
 } from 'lucide-react';
 import { backend } from '@/lib/backend';
 import { useApp } from '@/lib/store';
@@ -12,6 +12,23 @@ import { Tooltip } from '@/components/ui/misc';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/menu';
 import { colorOf } from '@/views/QueryView';
 import { ask } from '@/components/AskDialog';
+import { openDumpDialog } from '@/components/DumpDialog';
+
+/** Picks a .sql file, confirms and runs it with progress in a toast. */
+async function runSqlFile(connId: string, db: string | undefined, where: string) {
+  const ok = await ask({ title: `Import a SQL file into ${where}?`, description: 'The file may create, change or delete data. Statements that already ran are not rolled back if you cancel.', confirm: 'Choose file…' });
+  if (ok === null) return;
+  const id = toast.loading('Importing…');
+  try {
+    const r = await backend.importSql(connId, db, false, (m) => toast.loading('Importing…', { id, description: m }));
+    if (!r) return toast.dismiss(id);
+    toast.success(`Imported ${r.file}`, { id, description: `${r.statements.toLocaleString()} statements executed` });
+    useApp.getState().refreshTree();
+  } catch (e) {
+    toast.error('Import stopped', { id, description: String(e), duration: 15000 });
+    useApp.getState().refreshTree();
+  }
+}
 
 const qid = (s: string) => '`' + s.replace(/`/g, '``') + '`';
 
@@ -131,6 +148,9 @@ function ConnectionNode({ c, filter }: { c: Connection; filter: string }) {
           <FilePlus2 /> New query
         </ContextMenuItem>
         <ContextMenuSeparator />
+        <ContextMenuItem disabled={state !== 'on'} onSelect={() => void runSqlFile(c.id, undefined, c.name)}>
+          <Upload /> Import SQL file…
+        </ContextMenuItem>
         <ContextMenuItem onSelect={() => openConnDialog(c)}>
           <Pencil /> Edit connection…
         </ContextMenuItem>
@@ -241,6 +261,13 @@ function DatabaseNode({ connId, db, filter, defaultOpen }: { connId: string; db:
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => useApp.getState().refreshTree()}>
           <RefreshCw /> Refresh
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => openDumpDialog(connId, db)}>
+          <Download /> Export database (SQL dump)…
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void runSqlFile(connId, db, db)}>
+          <Upload /> Import SQL file…
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => void navigator.clipboard.writeText(db)}>

@@ -2626,6 +2626,7 @@ version = "0.2.0"
 dependencies = [
  "async-trait",
  "csv",
+ "flate2",
  "futures-util",
  "mysql_async",
  "russh",

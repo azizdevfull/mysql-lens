@@ -16,6 +16,7 @@ async-trait = "0.1"
 futures-util = "0.3"
 rust_xlsxwriter = { version = "0.104", default-features = false }
 csv = "1"
+flate2 = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

@@ -138,3 +138,48 @@ async fn exports() {
     e.query(&id, Some(DB), "DROP TABLE lens_exp; DROP TABLE lens_exp2").await.unwrap();
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn dump_and_import_roundtrip() {
+    use lens_core::dump::DumpOptions;
+    let (e, id) = engine().await;
+    e.query(&id, Some(DB), "DROP TABLE IF EXISTS lens_d1; DROP VIEW IF EXISTS lens_dv; DROP FUNCTION IF EXISTS lens_f").await.unwrap();
+    let setup = e
+        .query(
+            &id,
+            Some(DB),
+            "CREATE TABLE lens_d1 (id INT PRIMARY KEY, name VARCHAR(50), price DECIMAL(10,2), data BLOB, j JSON, created TIMESTAMP NULL, gen INT AS (id * 2) VIRTUAL);
+             INSERT INTO lens_d1 (id, name, price, data, j, created) VALUES (1, 'it''s; -- not a comment', 1.50, 0x00FF27, '{\"k\": [1, 2]}', '2025-03-04 05:06:07'), (2, 'emoji 😀 Oʻzbek', NULL, NULL, NULL, NULL);
+             CREATE VIEW lens_dv AS SELECT id, name FROM lens_d1;
+             DELIMITER //
+             CREATE FUNCTION lens_f(x INT) RETURNS INT DETERMINISTIC RETURN x + 1//
+             DELIMITER ;",
+        )
+        .await
+        .unwrap();
+    assert!(setup.iter().all(|r| r.kind != "error"), "{setup:?}");
+    let dir = std::env::temp_dir().join(format!("lens-dump-{}", uuid_like()));
+    std::fs::create_dir_all(&dir).unwrap();
+    for name in ["dump.sql", "dump.sql.gz"] {
+        let path = dir.join(name);
+        let o = DumpOptions { database: DB.into(), tables: vec!["lens_d1".into(), "lens_dv".into()], structure: true, data: true, drop_objects: true, create_database: false, views: true, routines: true, triggers: true };
+        let r = e.dump(&id, &o, &path, |_, _, _, _| true).await.unwrap();
+        assert_eq!((r.tables, r.rows), (1, 2), "{name}");
+        let before = e.query(&id, Some(DB), "SELECT id, name, price, HEX(data), j, created, gen FROM lens_d1 ORDER BY id").await.unwrap();
+        e.query(&id, Some(DB), "DROP VIEW lens_dv; DROP TABLE lens_d1; DROP FUNCTION lens_f").await.unwrap();
+        let imp = e.import_sql(&id, Some(DB), &path, false, |_, _, _| true).await.unwrap();
+        assert!(imp.errors.is_empty() && imp.statements > 5, "{imp:?}");
+        let after = e.query(&id, Some(DB), "SELECT id, name, price, HEX(data), j, created, gen FROM lens_d1 ORDER BY id").await.unwrap();
+        assert_eq!(before[0].rows, after[0].rows, "{name}");
+        let f = e.query(&id, Some(DB), "SELECT lens_f(41), (SELECT COUNT(*) FROM lens_dv)").await.unwrap();
+        assert_eq!(f[0].rows[0], vec![json!(42), json!(2)]);
+    }
+    // continue_on_error collects failures
+    let bad = dir.join("bad.sql");
+    std::fs::write(&bad, "CREATE TABLE IF NOT EXISTS lens_d2 (id INT);\nINSERT INTO nope VALUES (1);\nINSERT INTO lens_d2 VALUES (1),(2);\n").unwrap();
+    assert!(e.import_sql(&id, Some(DB), &bad, false, |_, _, _| true).await.is_err());
+    let r = e.import_sql(&id, Some(DB), &bad, true, |_, _, _| true).await.unwrap();
+    assert_eq!((r.statements, r.errors.len()), (2, 1));
+    e.query(&id, Some(DB), "DROP VIEW lens_dv; DROP TABLE lens_d1; DROP TABLE lens_d2; DROP FUNCTION lens_f").await.unwrap();
+    std::fs::remove_dir_all(dir).unwrap();
+}

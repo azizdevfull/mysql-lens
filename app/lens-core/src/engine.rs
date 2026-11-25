@@ -428,6 +428,31 @@ impl Engine {
         crate::export::export_query(&mut conn, &sql, crate::export::Format::parse(format)?, path, table, progress).await
     }
 
+    pub async fn dump(&self, id: &str, o: &crate::dump::DumpOptions, path: &std::path::Path, progress: impl FnMut(&str, usize, usize, u64) -> bool) -> Result<crate::dump::DumpResult> {
+        let c = self.config(id)?;
+        let (opts, _tunnel) = self.build(&c, None).await?;
+        // A dedicated connection: the dump changes the session time zone.
+        let mut conn = Conn::new(opts).await?;
+        let r = crate::dump::dump(&mut conn, o, path, progress).await;
+        let _ = conn.disconnect().await;
+        r
+    }
+
+    pub async fn import_sql(&self, id: &str, db: Option<&str>, path: &std::path::Path, continue_on_error: bool, progress: impl FnMut(u64, u64, u64) -> bool) -> Result<crate::dump::ImportResult> {
+        let c = self.config(id)?;
+        if c.read_only == Some(true) {
+            return Err(msg("This connection is read-only."));
+        }
+        let (opts, _tunnel) = self.build(&c, None).await?;
+        let mut conn = Conn::new(opts).await?;
+        if let Some(db) = db.filter(|d| !d.is_empty()) {
+            conn.query_drop(format!("USE {}", qid(db))).await?;
+        }
+        let r = crate::dump::import_sql(&mut conn, path, continue_on_error, progress).await;
+        let _ = conn.disconnect().await;
+        r
+    }
+
     pub fn preview_changes(&self, db: &str, table: &str, cols: &[Column], changes: &[RowChange]) -> Vec<String> {
         changes.iter().map(|c| Self::change_sql(db, table, cols, c)).collect()
     }
