@@ -134,11 +134,12 @@ function openTable(connId: string, db: string, table: string, isView: boolean): 
   viewTab('table', table, isView ? 'eye' : 'table', { kind: 'table', connId, db, table, isView }, 'grid', `table|${connId}|${db}|${table}`);
 }
 
-function openSql(opts: { text?: string; connId?: string; db?: string; title?: string; path?: string }): void {
+async function openSql(opts: { text?: string; connId?: string; db?: string; title?: string; path?: string }): Promise<void> {
   if (opts.path) {
     const existing = tabs.find((t) => t.sql?.path === opts.path);
     if (existing) return activate(existing);
   }
+  await ensureMonaco();
   const id = uid('sql');
   const tab: Tab = { id, kind: 'sql', title: opts.title ?? `Query ${queryCounter++}`, icon: 'file-code', el: h('div') };
   const sql = new SqlTab(
@@ -260,7 +261,7 @@ function status(msg: string): void {
 
 async function openFile(): Promise<void> {
   const f = await invoke('file.open');
-  if (f) openSql({ text: f.text, path: f.path, title: f.path.split(/[\\/]/).pop() });
+  if (f) await openSql({ text: f.text, path: f.path, title: f.path.split(/[\\/]/).pop() });
 }
 
 async function reloadConnections(): Promise<void> {
@@ -349,7 +350,7 @@ function handleEvent(ev: ShellEvent): void {
       viewTab('import', `Import into ${ev.db}`, 'cloud-download', { kind: 'import', connId: ev.connId, db: ev.db, table: ev.table }, 'importer');
       break;
     case 'openSql':
-      openSql({ text: ev.text, connId: ev.connId, db: ev.db, title: ev.title, path: ev.path });
+      void openSql({ text: ev.text, connId: ev.connId, db: ev.db, title: ev.title, path: ev.path });
       break;
     case 'closeView': {
       const t = tabs.find((x) => x.viewId === ev.viewId);
@@ -370,7 +371,7 @@ function handleEvent(ev: ShellEvent): void {
       break;
     }
     case 'theme':
-      monaco?.editor.setTheme(ev.theme === 'light' ? 'vs' : 'vs-dark');
+      monacoLoaded()?.editor.setTheme(ev.theme === 'light' ? 'vs' : 'vs-dark');
       break;
     case 'refreshTables':
       break;
@@ -392,11 +393,23 @@ function schemaFor(model: Monaco.editor.ITextModel): Promise<SchemaInfo | null> 
   return p;
 }
 
-function loadMonaco(): Promise<void> {
-  return new Promise((resolve) => {
+/** Monaco (~4 MB of JS) is loaded when the first SQL tab opens, not at startup. */
+let monacoReady: Promise<void> | undefined;
+function ensureMonaco(): Promise<void> {
+  monacoReady ??= new Promise<void>((resolve) => {
     require.config({ paths: { vs: 'app://lens/vs' } });
-    require(['vs/editor/editor.main'], () => resolve());
+    require(['vs/editor/editor.main'], () => {
+      const dark = !window.matchMedia('(prefers-color-scheme: light)').matches;
+      monaco.editor.setTheme(dark ? 'vs-dark' : 'vs');
+      registerSqlCompletion(monaco, schemaFor);
+      resolve();
+    });
   });
+  return monacoReady;
+}
+
+function monacoLoaded(): typeof Monaco | undefined {
+  return (window as unknown as { monaco?: typeof Monaco }).monaco;
 }
 
 document.addEventListener('keydown', (e) => {
@@ -432,10 +445,6 @@ window.lens.onMenu((action) => {
 async function boot(): Promise<void> {
   layout();
   onEvent(handleEvent);
-  await loadMonaco();
-  const dark = !window.matchMedia('(prefers-color-scheme: light)').matches;
-  monaco.editor.setTheme(dark ? 'vs-dark' : 'vs');
-  registerSqlCompletion(monaco, schemaFor);
   await reloadConnections();
   await tree.reloadRoots();
   showWelcome();

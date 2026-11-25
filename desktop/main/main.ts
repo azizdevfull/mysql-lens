@@ -26,6 +26,20 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: t
 
 let win: BrowserWindow | undefined;
 const host = new DesktopHost(() => win);
+
+// Keep the footprint small: one instance, no GPU process unless asked for.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+}
+app.on('second-instance', () => {
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
+});
+if (!host.settings().hardwareAcceleration) {
+  app.disableHardwareAcceleration();
+}
 const store = new DesktopStore();
 const conns = new ConnectionManager(store, {
   askSecret: async (prompt) => {
@@ -514,6 +528,21 @@ function buildMenu(): void {
         { label: 'Theme: System', type: 'radio', checked: host.settings().theme === 'system', click: () => api['settings.set']({ theme: 'system' }) },
         { label: 'Theme: Dark', type: 'radio', checked: host.settings().theme === 'dark', click: () => api['settings.set']({ theme: 'dark' }) },
         { label: 'Theme: Light', type: 'radio', checked: host.settings().theme === 'light', click: () => api['settings.set']({ theme: 'light' }) },
+        { type: 'separator' },
+        {
+          label: 'Hardware Acceleration (uses more memory, restart required)',
+          type: 'checkbox',
+          checked: host.settings().hardwareAcceleration,
+          click: (item) => {
+            host.saveSettings({ hardwareAcceleration: item.checked });
+            void host.info('Restart MySQL Lens to apply this change.', 'Restart Now').then((a) => {
+              if (a) {
+                app.relaunch();
+                app.quit();
+              }
+            });
+          },
+        },
         { type: 'separator' },
         { role: 'zoomIn' },
         { role: 'zoomOut' },

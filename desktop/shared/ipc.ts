@@ -99,7 +99,7 @@ export interface Api {
   'file.save'(path: string | undefined, text: string): string | null;
   'rpc.reply'(id: number, value: unknown): void;
   'progress.cancel'(id: number): void;
-  'settings.get'(): { theme: 'system' | 'dark' | 'light'; maxRows: number; pageSize: number; confirmDangerousQueries: boolean; showSystemDatabases: boolean };
+  'settings.get'(): { theme: 'system' | 'dark' | 'light'; hardwareAcceleration?: boolean; maxRows: number; pageSize: number; confirmDangerousQueries: boolean; showSystemDatabases: boolean };
   'settings.set'(patch: Record<string, unknown>): void;
   'app.info'(): { version: string; platform: string };
 }
