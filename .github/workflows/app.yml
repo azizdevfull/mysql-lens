@@ -3,7 +3,6 @@ name: MySQL Lens app (Tauri)
 on:
   push:
     tags: ['app-v*']
-    branches: ['feat/tauri-app']
   workflow_dispatch:
 
 permissions:
