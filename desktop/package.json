@@ -1,8 +1,8 @@
 {
   "name": "mysql-lens-desktop",
   "productName": "MySQL Lens",
-  "version": "0.1.0",
-  "description": "MySQL & MariaDB client with unlimited connections, SSH tunnels, an editable data grid, SQL autocomplete and import/export.",
+  "version": "0.1.1",
+  "description": "MySQL Lens",
   "author": "Azizbek Isroilov",
   "license": "MIT",
   "private": true,

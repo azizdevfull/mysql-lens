@@ -141,7 +141,7 @@ function render(): void {
   const server = section('Server', 'server', [
     h('div.row', null, field('Host', text(() => d.host, (v) => (d.host = v), { placeholder: '127.0.0.1' }), d.ssh.enabled ? 'As seen from the SSH server (often 127.0.0.1)' : undefined, 'grow'), field('Port', num(() => d.port, (v) => (d.port = v), { min: 1, max: 65535 }), undefined, 'port')),
     h('div.row', null, field('User', text(() => d.user, (v) => (d.user = v), { placeholder: 'root' }), undefined, 'grow'), field('Password', password(() => d.password, (v) => (d.password = v), d.savePassword ? '' : 'Asked when connecting'), undefined, 'grow')),
-    checkbox('Save password', () => d.savePassword, (v) => (d.savePassword = v), 'Stored encrypted in the OS keychain through VS Code Secret Storage'),
+    checkbox('Save password', () => d.savePassword, (v) => (d.savePassword = v), 'Stored encrypted with the operating system keychain'),
     field('Default database', text(() => d.database, (v) => (d.database = v), { placeholder: 'optional' }), 'Used for new queries; all databases stay visible in the tree'),
   ], undefined, 'MySQL 5.7+, 8.x, 9.x and MariaDB');
 
