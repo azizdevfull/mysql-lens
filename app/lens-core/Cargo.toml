@@ -1,0 +1,21 @@
+[package]
+name = "lens-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mysql_async = { version = "0.37", default-features = false, features = ["default-rustls-ring"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "io-util", "fs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+russh = { version = "0.65", default-features = false, features = ["ring", "rsa", "flate2"] }
+async-trait = "0.1"
+futures-util = "0.3"
+rust_xlsxwriter = { version = "0.104", default-features = false }
+csv = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

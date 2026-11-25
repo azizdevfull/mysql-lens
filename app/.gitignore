@@ -1,0 +1,6 @@
+node_modules/
+dist/
+target/
+src-tauri/gen/
+smoke-out/
+tsconfig.tsbuildinfo
