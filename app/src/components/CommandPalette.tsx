@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Database, Eye, FilePlus2, Moon, Plus, RefreshCw, Server, Sun, Table2 } from 'lucide-react';
+import { Database, Download, Eye, FilePlus2, Moon, Plus, RefreshCw, Server, Sun, Table2 } from 'lucide-react';
+import { checkForUpdates } from '@/lib/updater';
 import { backend } from '@/lib/backend';
 import { useApp } from '@/lib/store';
 import type { TableMeta } from '@/lib/types';
@@ -76,6 +77,9 @@ export function CommandPalette() {
               </CommandItem>
               <CommandItem onSelect={() => run(refreshTree)}>
                 <RefreshCw /> Refresh explorer
+              </CommandItem>
+              <CommandItem onSelect={() => run(() => void checkForUpdates(true))}>
+                <Download /> Check for updates
               </CommandItem>
             </CommandGroup>
             <CommandGroup heading="Connections">

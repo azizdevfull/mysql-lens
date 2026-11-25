@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MySQL Lens",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "uz.azizdev.mysqllens",
   "build": {
     "frontendDist": "../dist",
@@ -37,6 +37,18 @@
       "nsis": {
         "installMode": "currentUser",
         "displayLanguageSelector": false
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlDQ0EwRjc3QTY0NDM4RjUKUldUMU9FU21kdy9LbkozN1NPT0g4RXNoNE9DelU5ODd4KzNjSlNrZUo3UzhhSzJMcTkyWDh6ZFIK",
+      "endpoints": [
+        "https://github.com/azizdevfull/mysql-lens/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

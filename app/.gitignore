@@ -4,3 +4,4 @@ target/
 src-tauri/gen/
 smoke-out/
 tsconfig.tsbuildinfo
+release-assets/

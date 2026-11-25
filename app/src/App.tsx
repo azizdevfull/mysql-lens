@@ -1,4 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { checkForUpdates } from '@/lib/updater';
+import { backend } from '@/lib/backend';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Toaster } from 'sonner';
 import { Command, Database, FileCode2, Home, Moon, Plus, Sun, Table2, X, Eye } from 'lucide-react';
@@ -89,6 +91,10 @@ function TitleBar() {
 }
 
 function StatusBar() {
+  const [version, setVersion] = useState('');
+  useEffect(() => {
+    if (backend.native) void import('@tauri-apps/api/app').then((m) => m.getVersion()).then(setVersion);
+  }, []);
   const tab = useApp((s) => s.tabs.find((t) => t.id === s.active));
   const conn = useApp((s) => s.connections.find((c) => c.id === tab?.connId));
   const state = useApp((s) => (tab?.connId ? s.connState[tab.connId] : undefined));
@@ -105,6 +111,11 @@ function StatusBar() {
         <span>No connection</span>
       )}
       <span className="ml-auto">UTF-8 · MySQL</span>
+      {version && (
+        <button onClick={() => void checkForUpdates(true)} className="rounded px-1 hover:bg-accent hover:text-foreground" title="Check for updates">
+          v{version}
+        </button>
+      )}
     </div>
   );
 }
@@ -117,6 +128,7 @@ export default function App() {
 
   useEffect(() => {
     void load();
+    const t = window.setTimeout(() => void checkForUpdates(false), 4000);
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === 'k') {
@@ -132,7 +144,10 @@ export default function App() {
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('keydown', onKey);
+    };
   }, [load, setPalette, openQuery, closeTab]);
 
   return (

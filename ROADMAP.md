@@ -7,7 +7,7 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 
 ## Navbatdagi versiya (0.3.0)
 
-### ⬜ 1. Avtomatik yangilanish
+### ✅ 1. Avtomatik yangilanish (0.3.0)
 
 **Maqsad:** yangi versiya chiqsa, ilova o'zi xabar beradi va bir tugma bilan yangilanadi. Exe'ni qo'lda yuklab o'tirish kerak bo'lmaydi.
 
