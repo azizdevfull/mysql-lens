@@ -1,0 +1,2 @@
+- Tab menu: right-click a tab to close others, close to the right, close all or duplicate a query
+- After an update, the app tells you which version you are on and what changed

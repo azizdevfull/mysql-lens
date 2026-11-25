@@ -13,6 +13,9 @@ import { DataGrid } from '@/components/DataGrid';
 import { ExportMenu } from '@/components/ExportMenu';
 import { SqlEditor } from '@/components/SqlEditor';
 
+/** Current editor text of each query tab (for duplicating tabs). */
+export const liveSql = new Map<string, string>();
+
 export function QueryView({ tab }: { tab: Tab }) {
   const connections = useApp((s) => s.connections);
   const connState = useApp((s) => s.connState);
@@ -64,6 +67,7 @@ export function QueryView({ tab }: { tab: Tab }) {
 
   const onChange = (v: string) => {
     setSql(v);
+    liveSql.set(tab.id, v);
     if (!tab.dirty) updateTab(tab.id, { dirty: true });
   };
 

@@ -18,7 +18,7 @@ fs.copyFileSync(path.join(dir, setup + '.sig'), path.join(out, name + '.sig'));
 
 const manifest = {
   version,
-  notes: process.env.RELEASE_NOTES ?? `MySQL Lens ${version}`,
+  notes: fs.existsSync('release-notes.md') ? fs.readFileSync('release-notes.md', 'utf8').trim() : `MySQL Lens ${version}`,
   pub_date: new Date().toISOString(),
   platforms: {
     'windows-x86_64': {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { checkForUpdates } from '@/lib/updater';
 import { backend } from '@/lib/backend';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { Command, Database, FileCode2, Home, Moon, Plus, Sun, Table2, X, Eye } from 'lucide-react';
 import { useApp } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -15,14 +15,16 @@ import { AskDialog } from '@/components/AskDialog';
 import { DumpDialog } from '@/components/DumpDialog';
 import { ImportWizard } from '@/components/ImportWizard';
 import { TableView } from '@/views/TableView';
-import { QueryView, colorOf } from '@/views/QueryView';
+import { QueryView, colorOf, liveSql } from '@/views/QueryView';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/menu';
+import releaseNotes from '../release-notes.md?raw';
 import { Welcome } from '@/views/Welcome';
 
 function TabBar() {
   const tabs = useApp((s) => s.tabs);
   const active = useApp((s) => s.active);
   const connections = useApp((s) => s.connections);
-  const { setActive, closeTab, openQuery } = useApp.getState();
+  const { setActive, closeTab, openQuery, closeOthers, closeRight, closeAll } = useApp.getState();
   return (
     <div className="flex h-10 shrink-0 items-end gap-0.5 border-b bg-sidebar px-1.5">
       <div className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto [scrollbar-width:none]">
@@ -30,8 +32,9 @@ function TabBar() {
           const conn = connections.find((c) => c.id === t.connId);
           const Icon = t.kind === 'welcome' ? Home : t.kind === 'query' ? FileCode2 : t.isView ? Eye : Table2;
           return (
+            <ContextMenu key={t.id}>
+            <ContextMenuTrigger asChild>
             <div
-              key={t.id}
               onMouseDown={(e) => (e.button === 1 ? (e.preventDefault(), closeTab(t.id)) : setActive(t.id))}
               className={cn(
                 'group relative flex h-8 max-w-56 shrink-0 cursor-pointer items-center gap-2 rounded-t-lg border border-b-0 border-transparent pr-1.5 pl-3 text-[13px] select-none',
@@ -50,6 +53,22 @@ function TabBar() {
                 <X className="size-3.5" />
               </button>
             </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => closeTab(t.id)} shortcut="Ctrl W">
+                Close
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => closeOthers(t.id)}>Close others</ContextMenuItem>
+              <ContextMenuItem onSelect={() => closeRight(t.id)}>Close to the right</ContextMenuItem>
+              <ContextMenuItem onSelect={closeAll}>Close all</ContextMenuItem>
+              {t.kind === 'query' && (
+                <>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onSelect={() => openQuery(t.connId, t.db, liveSql.get(t.id) ?? t.sql ?? '')}>Duplicate</ContextMenuItem>
+                </>
+              )}
+            </ContextMenuContent>
+            </ContextMenu>
           );
         })}
       </div>
@@ -93,7 +112,22 @@ function TitleBar() {
 function StatusBar() {
   const [version, setVersion] = useState('');
   useEffect(() => {
-    if (backend.native) void import('@tauri-apps/api/app').then((m) => m.getVersion()).then(setVersion);
+    if (!backend.native) return;
+    void import('@tauri-apps/api/app')
+      .then((m) => m.getVersion())
+      .then((v) => {
+        setVersion(v);
+        // First start after an update: say so, with what changed.
+        try {
+          const last = localStorage.getItem('lastVersion');
+          if (last && last !== v) {
+            toast.success(`MySQL Lens updated to ${v}`, { description: releaseNotes.replace(/^- /gm, '• ').trim(), duration: 12000 });
+          }
+          localStorage.setItem('lastVersion', v);
+        } catch {
+          // ignore
+        }
+      });
   }, []);
   const tab = useApp((s) => s.tabs.find((t) => t.id === s.active));
   const conn = useApp((s) => s.connections.find((c) => c.id === tab?.connId));

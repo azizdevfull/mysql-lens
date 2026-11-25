@@ -37,6 +37,9 @@ interface State {
   openTable(connId: string, db: string, table: string, isView?: boolean): void;
   openQuery(connId?: string, db?: string, sql?: string): void;
   closeTab(id: string): void;
+  closeOthers(id: string): void;
+  closeRight(id: string): void;
+  closeAll(): void;
   setActive(id: string): void;
   updateTab(id: string, patch: Partial<Tab>): void;
   toggleTheme(): void;
@@ -119,6 +122,22 @@ export const useApp = create<State>((set, get) => ({
       const active = s.active === id ? tabs[Math.min(i, tabs.length - 1)].id : s.active;
       return { tabs, active };
     });
+  },
+
+  closeOthers(id) {
+    set((s) => ({ tabs: s.tabs.filter((t) => t.id === id), active: id }));
+  },
+
+  closeRight(id) {
+    set((s) => {
+      const i = s.tabs.findIndex((t) => t.id === id);
+      const tabs = s.tabs.slice(0, i + 1);
+      return { tabs, active: tabs.some((t) => t.id === s.active) ? s.active : id };
+    });
+  },
+
+  closeAll() {
+    set({ tabs: [welcome], active: 'welcome' });
   },
 
   setActive(id) {
