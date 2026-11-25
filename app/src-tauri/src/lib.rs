@@ -6,7 +6,7 @@ use lens_core::engine::Engine;
 use lens_core::error::LensError;
 use lens_core::store::{ConnStore, SecretStore};
 use lens_core::types::*;
-use tauri::{Emitter, Manager, State};
+use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 type R<T> = Result<T, LensError>;
 
@@ -177,6 +177,23 @@ pub fn run() {
             let dir = app.path().app_config_dir()?;
             let engine = Engine::new(ConnStore::new(dir.join("connections.json")), Arc::new(KeychainSecrets));
             app.manage(AppState { engine });
+
+            // Same flags Tauri uses by default; the smoke test can additionally
+            // ask for a DevTools port (never enabled for normal starts).
+            let mut args = String::from("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection");
+            if let Ok(port) = std::env::var("MYSQL_LENS_REMOTE_DEBUG_PORT") {
+                if port.chars().all(|c| c.is_ascii_digit()) && !port.is_empty() {
+                    args.push_str(&format!(" --remote-debugging-port={port}"));
+                }
+            }
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+                .title("MySQL Lens")
+                .inner_size(1400.0, 880.0)
+                .min_inner_size(960.0, 600.0)
+                .center()
+                .disable_drag_drop_handler()
+                .additional_browser_args(&args)
+                .build()?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

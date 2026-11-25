@@ -16,7 +16,7 @@ const note = (m) => {
 };
 
 const started = Date.now();
-const app = spawn(exe, [], { env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9333' }, stdio: 'inherit' });
+const app = spawn(exe, [], { env: { ...process.env, MYSQL_LENS_REMOTE_DEBUG_PORT: '9333' }, stdio: 'inherit' });
 let ok = false;
 try {
   let browser;
