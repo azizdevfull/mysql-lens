@@ -6,6 +6,8 @@ import { JsonFile } from './store';
 
 export interface DesktopSettings extends Settings {
   theme: 'system' | 'dark' | 'light';
+  /** GPU compositing. Off by default: saves ~60 MB and this UI does not need it. */
+  hardwareAcceleration: boolean;
 }
 
 export const settingsFile = () => new JsonFile<Partial<DesktopSettings>>('settings.json', {});
@@ -52,7 +54,7 @@ export class DesktopHost implements UiHost {
   }
 
   settings(): DesktopSettings {
-    return { ...DEFAULT_SETTINGS, theme: 'system', ...this.settingsStore.read() };
+    return { ...DEFAULT_SETTINGS, theme: 'system', hardwareAcceleration: false, ...this.settingsStore.read() };
   }
 
   saveSettings(patch: Partial<DesktopSettings>): DesktopSettings {

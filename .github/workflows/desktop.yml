@@ -37,6 +37,17 @@ jobs:
         run: npm run dist:win
         working-directory: desktop
 
+      - name: Smoke test the packaged app
+        run: node test/smoke.cjs "release/win-unpacked/MySQL Lens.exe" smoke-out
+        working-directory: desktop
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test
+          path: desktop/smoke-out/
+          if-no-files-found: ignore
+
       - uses: actions/upload-artifact@v4
         with:
           name: mysql-lens-windows

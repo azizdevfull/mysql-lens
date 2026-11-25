@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as mysql from 'mysql2';
-import ExcelJS from 'exceljs';
+import type ExcelJS from 'exceljs';
 import type { Cell, ColumnInfo, ExportFormat } from '../shared/protocol';
 import { cellLiteral, columnFromField, qid } from '../sql';
 
@@ -167,14 +167,20 @@ class MarkdownWriter implements RowWriter {
   }
 }
 
+/** Loads exceljs only when an Excel file is actually read or written (it is large). */
+export async function loadExcel(): Promise<typeof ExcelJS> {
+  const mod = (await import('exceljs')) as unknown as { default?: typeof ExcelJS } & typeof ExcelJS;
+  return mod.default ?? mod;
+}
+
 class XlsxWriter implements RowWriter {
-  private readonly wb: ExcelJS.stream.xlsx.WorkbookWriter;
+  private wb!: ExcelJS.stream.xlsx.WorkbookWriter;
   private sheet!: ExcelJS.Worksheet;
   private cols: ColumnInfo[] = [];
-  constructor(private readonly file: string, private readonly sheetName: string) {
-    this.wb = new ExcelJS.stream.xlsx.WorkbookWriter({ filename: file, useStyles: true });
-  }
+  constructor(private readonly file: string, private readonly sheetName: string) {}
   async begin(columns: ColumnInfo[]) {
+    const Excel = await loadExcel();
+    this.wb = new Excel.stream.xlsx.WorkbookWriter({ filename: this.file, useStyles: true });
     this.cols = columns;
     this.sheet = this.wb.addWorksheet(this.sheetName.slice(0, 31).replace(/[\\/?*[\]:]/g, '_') || 'Sheet1', {
       views: [{ state: 'frozen', ySplit: 1 }],
@@ -201,7 +207,7 @@ class XlsxWriter implements RowWriter {
   }
   async abort() {
     try {
-      await this.wb.commit();
+      await this.wb?.commit();
     } catch {
       // ignore
     }

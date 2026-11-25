@@ -1,7 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { parse } from 'csv-parse';
-import ExcelJS from 'exceljs';
+import { loadExcel } from './exporters';
 import * as mysql from 'mysql2';
 import { runQuery } from '../connections/driver';
 import type { Cell, ImportPlan, ImportPreview, ImportSourceOptions } from '../shared/protocol';
@@ -56,7 +55,8 @@ export async function detectOptions(file: string): Promise<ImportSourceOptions> 
   return opts;
 }
 
-function csvParser(file: string, o: ImportSourceOptions, toLine?: number) {
+async function csvParser(file: string, o: ImportSourceOptions, toLine?: number) {
+  const { parse } = await import('csv-parse');
   return fs.createReadStream(file, { encoding: o.encoding as BufferEncoding }).pipe(
     parse({
       delimiter: o.delimiter === '\\t' ? '\t' : o.delimiter || ',',
@@ -115,7 +115,7 @@ async function load(file: string, o: ImportSourceOptions, previewOnly: boolean):
   if (kind === 'csv') {
     const first = await firstRecord(file, o);
     const columns = o.header ? first.map((c, i) => String(c ?? '').trim() || `column_${i + 1}`) : first.map((_, i) => `column_${i + 1}`);
-    const parser = csvParser(file, o, previewOnly ? PREVIEW_ROWS + 1 : undefined);
+    const parser = await csvParser(file, o, previewOnly ? PREVIEW_ROWS + 1 : undefined);
     async function* rows(): AsyncIterable<Cell[]> {
       let skip = o.header;
       for await (const rec of parser as AsyncIterable<string[]>) {
@@ -175,7 +175,8 @@ async function load(file: string, o: ImportSourceOptions, previewOnly: boolean):
     return { columns, rows: rows(), count: list.length };
   }
   // xlsx
-  const wb = new ExcelJS.Workbook();
+  const Excel = await loadExcel();
+  const wb = new Excel.Workbook();
   await wb.xlsx.readFile(file);
   const sheets = wb.worksheets.map((w) => w.name);
   const ws = (o.sheet && wb.getWorksheet(o.sheet)) || wb.worksheets[0];
@@ -201,7 +202,7 @@ async function load(file: string, o: ImportSourceOptions, previewOnly: boolean):
 }
 
 async function firstRecord(file: string, o: ImportSourceOptions): Promise<string[]> {
-  for await (const rec of csvParser(file, o, 1) as AsyncIterable<string[]>) {
+  for await (const rec of (await csvParser(file, o, 1)) as AsyncIterable<string[]>) {
     return rec;
   }
   return [];

@@ -1,6 +1,6 @@
 import * as net from 'node:net';
 import { readFile } from 'node:fs/promises';
-import { AgentAuthMethod, AuthMethod, Client, ConnectConfig, PasswordAuthMethod, PublicKeyAuthMethod, utils } from 'ssh2';
+import type { AgentAuthMethod, AuthMethod, ConnectConfig, PasswordAuthMethod, PublicKeyAuthMethod } from 'ssh2';
 import { SshConfig } from './types';
 
 export interface SshSecrets {
@@ -43,6 +43,8 @@ export async function openTunnel(
   }
   cfg.authHandler = methods;
 
+  // ssh2 is loaded on the first tunnel, not at startup.
+  const { Client } = await import('ssh2');
   const client = new Client();
   await new Promise<void>((resolve, reject) => {
     client.once('ready', resolve);
@@ -121,7 +123,7 @@ export async function authMethods(ssh: SshConfig, secrets: SshSecrets): Promise<
       }
       return;
     }
-    const parsed = utils.parseKey(key, passphrase);
+    const parsed = (await import('ssh2')).utils.parseKey(key, passphrase);
     if (parsed instanceof Error) {
       if (file === ssh.privateKeyPath) {
         throw new Error(/passphrase/i.test(parsed.message) ? `SSH key ${file} is encrypted: enter its passphrase.` : `SSH key ${file}: ${parsed.message}`);
