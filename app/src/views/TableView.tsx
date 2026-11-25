@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, KeyRound, Lock, PanelRight, Play, Plus, RefreshCw, Search, Table2, Trash2, Undo2, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, KeyRound, Lock, PanelRight, Play, Plus, RefreshCw, Search, Table2, Trash2, Undo2, Upload, Eye } from 'lucide-react';
 import { backend } from '@/lib/backend';
 import { useApp, type Tab } from '@/lib/store';
 import type { Cell, Column, RowChange, SortSpec } from '@/lib/types';
@@ -9,6 +9,7 @@ import { cn, formatMs } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge, Kbd, Tooltip } from '@/components/ui/misc';
 import { ExportMenu } from '@/components/ExportMenu';
+import { openImportWizard } from '@/components/ImportWizard';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DataGrid } from '@/components/DataGrid';
 import { SqlEditor } from '@/components/SqlEditor';
@@ -241,6 +242,13 @@ export function TableView({ tab }: { tab: Tab }) {
               <RefreshCw className={cn(loading && 'animate-spin')} />
             </Button>
           </Tooltip>
+          {!readOnly && (
+            <Tooltip content="Import CSV, Excel or JSON into this table">
+              <Button size="sm" variant="ghost" onClick={() => openImportWizard(connId, db, table)}>
+                <Upload /> Import
+              </Button>
+            </Tooltip>
+          )}
           <ExportMenu connId={connId} db={db} table={table} sql={data?.custom ? query : state.filter || state.sort ? query.replace(/\s+LIMIT\s+\d+(\s+OFFSET\s+\d+)?\s*;?\s*$/i, '') : ''} label={data?.custom ? 'Export query result' : state.filter ? 'Export filtered rows (all pages)' : 'Export whole table'} />
           <Tooltip content={inspector ? 'Hide row panel' : 'Show row panel'}>
             <Button size="icon-sm" variant={inspector ? 'secondary' : 'ghost'} onClick={() => setInspector((v) => !v)}>

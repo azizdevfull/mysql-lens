@@ -183,3 +183,80 @@ async fn dump_and_import_roundtrip() {
     e.query(&id, Some(DB), "DROP VIEW lens_dv; DROP TABLE lens_d1; DROP TABLE lens_d2; DROP FUNCTION lens_f").await.unwrap();
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn data_import() {
+    use lens_core::data_import::{preview, ImportPlan, Mapping, NewColumn};
+    let (e, id) = engine().await;
+    let dir = std::env::temp_dir().join(format!("lens-imp-{}", uuid_like()));
+    std::fs::create_dir_all(&dir).unwrap();
+    e.query(&id, Some(DB), "DROP TABLE IF EXISTS lens_people; DROP TABLE IF EXISTS lens_kv; DROP TABLE IF EXISTS lens_xl").await.unwrap();
+
+    // CSV with ; delimiter, quotes, newlines -> new table
+    let csv = dir.join("people.csv");
+    std::fs::write(&csv, "Full Name;Age;Joined;Note\n\"Ali; Valiyev\";30;2024-01-02;\"multi\nline \"\"quoted\"\"\"\nOʻlmas;;2024-02-03;\n").unwrap();
+    let p = preview(&csv, None).unwrap();
+    assert_eq!(p.options.delimiter, ";");
+    assert_eq!(p.source_columns, vec!["Full Name", "Age", "Joined", "Note"]);
+    assert_eq!(p.rows.len(), 2);
+    assert_eq!(&p.inferred_types[1..3], &["INT".to_string(), "DATE".to_string()]);
+    let plan = ImportPlan {
+        create_table: true,
+        table: "lens_people".into(),
+        new_columns: vec![
+            NewColumn { name: "full_name".into(), col_type: "VARCHAR(100)".into(), source: 0 },
+            NewColumn { name: "age".into(), col_type: "INT".into(), source: 1 },
+            NewColumn { name: "joined".into(), col_type: "DATE".into(), source: 2 },
+            NewColumn { name: "note".into(), col_type: "TEXT".into(), source: 3 },
+        ],
+        mapping: vec![],
+        mode: "insert".into(),
+        truncate_first: false,
+        empty_as_null: true,
+        batch_size: 1,
+    };
+    assert_eq!(e.import_data(&id, DB, &csv, &p.options, &plan, |_| true).await.unwrap(), 2);
+    let rows = e.query(&id, Some(DB), "SELECT * FROM lens_people ORDER BY joined").await.unwrap();
+    assert_eq!(rows[0].rows, vec![vec![json!("Ali; Valiyev"), json!(30), json!("2024-01-02"), json!("multi\nline \"quoted\"")], vec![json!("Oʻlmas"), Value::Null, json!("2024-02-03"), Value::Null]]);
+
+    // JSON into an existing table: mapping, REPLACE, and full rollback on failure
+    e.query(&id, Some(DB), "CREATE TABLE lens_kv (id INT PRIMARY KEY, v VARCHAR(10) NOT NULL); INSERT INTO lens_kv VALUES (1, 'old'), (9, 'keep')").await.unwrap();
+    let js = dir.join("rows.json");
+    std::fs::write(&js, r#"[{"ID": 1, "value": "one"}, {"ID": 2, "value": "two", "extra": true}]"#).unwrap();
+    let p = preview(&js, None).unwrap();
+    assert_eq!(p.source_columns, vec!["ID", "value", "extra"]);
+    let map = |trunc: bool| ImportPlan { create_table: false, table: "lens_kv".into(), new_columns: vec![], mapping: vec![Mapping { column: "id".into(), source: 0 }, Mapping { column: "v".into(), source: 1 }], mode: "replace".into(), truncate_first: trunc, empty_as_null: true, batch_size: 1 };
+    e.import_data(&id, DB, &js, &p.options, &map(false), |_| true).await.unwrap();
+    assert_eq!(kv(&e, &id).await, vec![vec![json!(1), json!("one")], vec![json!(2), json!("two")], vec![json!(9), json!("keep")]]);
+    std::fs::write(&js, r#"[{"ID": 5, "value": "ok"}, {"ID": 6, "value": "this value is far too long"}]"#).unwrap();
+    assert!(e.import_data(&id, DB, &js, &p.options, &map(true), |_| true).await.is_err());
+    assert_eq!(kv(&e, &id).await.len(), 3, "failed import must not delete or insert anything");
+
+    // Excel produced by our own exporter
+    e.query(&id, Some(DB), "CREATE TABLE lens_src (id INT PRIMARY KEY, name VARCHAR(30), price DECIMAL(8,2), day DATE); INSERT INTO lens_src VALUES (1, 'Tea', 2.50, '2025-01-01'), (2, 'Coffee', 3.75, NULL)").await.unwrap();
+    let xl = dir.join("src.xlsx");
+    e.export(&id, DB, "lens_src", "", "xlsx", &xl, |_| true).await.unwrap();
+    let p = preview(&xl, None).unwrap();
+    assert_eq!(p.source_columns, vec!["id", "name", "price", "day"]);
+    assert_eq!(p.row_count, Some(2));
+    let plan = ImportPlan {
+        create_table: true,
+        table: "lens_xl".into(),
+        new_columns: p.source_columns.iter().enumerate().map(|(i, n)| NewColumn { name: n.clone(), col_type: if i == 1 { "VARCHAR(30)".into() } else { p.inferred_types[i].clone() }, source: i }).collect(),
+        mapping: vec![],
+        mode: "insert".into(),
+        truncate_first: false,
+        empty_as_null: true,
+        batch_size: 500,
+    };
+    e.import_data(&id, DB, &xl, &p.options, &plan, |_| true).await.unwrap();
+    let a = e.query(&id, Some(DB), "SELECT id, name, CAST(price AS DOUBLE) FROM lens_src ORDER BY id").await.unwrap();
+    let b = e.query(&id, Some(DB), "SELECT id, name, CAST(price AS DOUBLE) FROM lens_xl ORDER BY id").await.unwrap();
+    assert_eq!(a[0].rows, b[0].rows);
+    e.query(&id, Some(DB), "DROP TABLE lens_people; DROP TABLE lens_kv; DROP TABLE lens_src; DROP TABLE lens_xl").await.unwrap();
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+async fn kv(e: &Engine, id: &str) -> Vec<Vec<Value>> {
+    e.query(id, Some(DB), "SELECT * FROM lens_kv ORDER BY id").await.unwrap()[0].rows.clone()
+}

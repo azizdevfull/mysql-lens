@@ -107,6 +107,38 @@ export interface Backend {
   dumpDatabase(id: string, opts: DumpOptions, onProgress: (msg: string) => void): Promise<{ tables: number; rows: number; path: string } | null>;
   /** Asks for a .sql/.sql.gz file and runs it. */
   importSql(id: string, db: string | undefined, continueOnError: boolean, onProgress: (msg: string) => void): Promise<{ statements: number; errors: string[]; file: string } | null>;
+  pickDataFile(): Promise<string | null>;
+  importPreview(path: string, opts?: SourceOptions): Promise<ImportPreview>;
+  importData(id: string, db: string, path: string, opts: SourceOptions, plan: ImportPlan, onProgress: (rows: number) => void): Promise<number>;
+}
+
+export interface SourceOptions {
+  delimiter: string;
+  header: boolean;
+  sheet?: string | null;
+  encoding: string;
+}
+
+export interface ImportPreview {
+  fileName: string;
+  fileKind: 'csv' | 'json' | 'excel';
+  sourceColumns: string[];
+  rows: Cell[][];
+  rowCount: number | null;
+  sheets: string[];
+  options: SourceOptions;
+  inferredTypes: string[];
+}
+
+export interface ImportPlan {
+  createTable: boolean;
+  table: string;
+  newColumns: { name: string; type: string; source: number }[];
+  mapping: { column: string; source: number }[];
+  mode: 'insert' | 'ignore' | 'replace';
+  truncateFirst: boolean;
+  emptyAsNull: boolean;
+  batchSize: number;
 }
 
 export interface DumpOptions {

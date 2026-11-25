@@ -53,6 +53,19 @@ export const tauriBackend: Backend = {
       off();
     }
   },
+  async pickDataFile() {
+    const f = await open({ multiple: false, filters: [{ name: 'Data files', extensions: ['csv', 'tsv', 'txt', 'json', 'jsonl', 'ndjson', 'xlsx', 'xlsm', 'xls', 'ods'] }] });
+    return f && !Array.isArray(f) ? String(f) : null;
+  },
+  importPreview: (path, opts) => invoke('import_preview', { path, opts: opts ?? null }),
+  async importData(id, db, path, opts, plan, onProgress) {
+    const off = await listen<number>('data-import-progress', (e) => onProgress(e.payload));
+    try {
+      return await invoke<number>('import_data', { id, db, path, opts, plan });
+    } finally {
+      off();
+    }
+  },
   async importSql(id, db, continueOnError, onProgress) {
     const file = await open({ multiple: false, filters: [{ name: 'SQL files', extensions: ['sql', 'gz'] }] });
     if (!file || Array.isArray(file)) return null;

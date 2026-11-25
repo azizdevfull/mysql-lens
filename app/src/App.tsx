@@ -11,6 +11,7 @@ import { ConnectionDialog } from '@/components/ConnectionDialog';
 import { CommandPalette } from '@/components/CommandPalette';
 import { AskDialog } from '@/components/AskDialog';
 import { DumpDialog } from '@/components/DumpDialog';
+import { ImportWizard } from '@/components/ImportWizard';
 import { TableView } from '@/views/TableView';
 import { QueryView, colorOf } from '@/views/QueryView';
 import { Welcome } from '@/views/Welcome';
@@ -162,6 +163,7 @@ export default function App() {
       <CommandPalette />
       <AskDialog />
       <DumpDialog />
+      <ImportWizard />
       <Toaster theme={theme} position="bottom-right" richColors closeButton toastOptions={{ className: 'font-sans' }} />
     </TooltipProvider>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  AlertCircle, ChevronRight, Copy, Database, Download, Eye, FilePlus2, FileCode2, FolderClosed, FunctionSquare, Loader2, Lock, Pencil, Plug, PlugZap, Plus, RefreshCw, Search, Server, Table2, Trash2, Upload, Workflow, Zap,
+  AlertCircle, ChevronRight, Copy, Database, Download, Eye, FilePlus2, FileSpreadsheet, FileCode2, FolderClosed, FunctionSquare, Loader2, Lock, Pencil, Plug, PlugZap, Plus, RefreshCw, Search, Server, Table2, Trash2, Upload, Workflow, Zap,
 } from 'lucide-react';
 import { backend } from '@/lib/backend';
 import { useApp } from '@/lib/store';
@@ -13,6 +13,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { colorOf } from '@/views/QueryView';
 import { ask } from '@/components/AskDialog';
 import { openDumpDialog } from '@/components/DumpDialog';
+import { openImportWizard } from '@/components/ImportWizard';
 
 /** Picks a .sql file, confirms and runs it with progress in a toast. */
 async function runSqlFile(connId: string, db: string | undefined, where: string) {
@@ -269,6 +270,9 @@ function DatabaseNode({ connId, db, filter, defaultOpen }: { connId: string; db:
         <ContextMenuItem onSelect={() => void runSqlFile(connId, db, db)}>
           <Upload /> Import SQL file…
         </ContextMenuItem>
+        <ContextMenuItem onSelect={() => openImportWizard(connId, db)}>
+          <FileSpreadsheet /> Import CSV, Excel, JSON…
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => void navigator.clipboard.writeText(db)}>
           <Copy /> Copy name
@@ -302,6 +306,9 @@ function TableNode({ connId, db, name, rows, active, onOpen }: { connId: string;
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => openQuery(connId, db, `SELECT *\n  FROM ${name}\n WHERE 1 = 1\n LIMIT 100;`)}>
           <FileCode2 /> New query on {name}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => openImportWizard(connId, db, name)}>
+          <FileSpreadsheet /> Import CSV, Excel, JSON…
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => void navigator.clipboard.writeText(name)}>

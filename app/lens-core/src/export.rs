@@ -44,7 +44,7 @@ fn text(v: &Cell) -> Option<String> {
     }
 }
 
-trait Sink {
+trait Sink: Send {
     fn begin(&mut self, cols: &[Column]) -> Result<()>;
     fn row(&mut self, cols: &[Column], row: &[Cell]) -> Result<()>;
     fn end(self: Box<Self>) -> Result<()>;

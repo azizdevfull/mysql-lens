@@ -268,6 +268,21 @@ export const mockBackend: Backend = {
     }
     return { tables: o.tables.length, rows: 10002, path: `C:\\Users\\you\\Downloads\\${o.database}.sql${o.gzip ? '.gz' : ''}` };
   },
+  async pickDataFile() {
+    return 'customers_2025.csv';
+  },
+  async importPreview(path, opts) {
+    await delay(150);
+    const rows = Array.from({ length: 40 }, (_, i) => [String(i + 1), `Mijoz ${i}`, i % 5 ? `m${i}@mail.uz` : '', (i * 12.5).toFixed(2), `2025-01-${String(10 + (i % 20)).padStart(2, '0')}`]);
+    return { fileName: path, fileKind: 'csv', sourceColumns: ['ID', 'Full Name', 'E-mail', 'Balance', 'Created'], rows, rowCount: null, sheets: [], options: opts ?? { delimiter: ';', header: true, encoding: 'utf8' }, inferredTypes: ['INT', 'VARCHAR(100)', 'VARCHAR(100)', 'DECIMAL(12,2)', 'DATE'] };
+  },
+  async importData(_id, _db, _path, _opts, _plan, onProgress) {
+    for (let i = 1; i <= 5; i++) {
+      onProgress(i * 500);
+      await delay(200);
+    }
+    return 2500;
+  },
   async importSql(_id, _db, _c, onProgress) {
     for (let i = 1; i <= 4; i++) {
       onProgress(`${i * 25}% · ${i * 120} statements`);

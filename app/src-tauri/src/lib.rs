@@ -154,6 +154,21 @@ async fn import_sql(app: tauri::AppHandle, s: State<'_, AppState>, id: String, d
         .await
 }
 
+#[tauri::command]
+async fn import_preview(path: PathBuf, opts: Option<lens_core::data_import::SourceOptions>) -> R<lens_core::data_import::Preview> {
+    tokio::task::spawn_blocking(move || lens_core::data_import::preview(&path, opts)).await.map_err(|e| lens_core::error::msg(e.to_string()))?
+}
+
+#[tauri::command]
+async fn import_data(app: tauri::AppHandle, s: State<'_, AppState>, id: String, db: String, path: PathBuf, opts: lens_core::data_import::SourceOptions, plan: lens_core::data_import::ImportPlan) -> R<u64> {
+    s.engine
+        .import_data(&id, &db, &path, &opts, &plan, |n| {
+            let _ = app.emit("data-import-progress", n);
+            true
+        })
+        .await
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -181,7 +196,9 @@ pub fn run() {
             apply_changes,
             export_data,
             dump_database,
-            import_sql
+            import_sql,
+            import_preview,
+            import_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running MySQL Lens");

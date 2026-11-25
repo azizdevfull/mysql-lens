@@ -453,6 +453,14 @@ impl Engine {
         r
     }
 
+    pub async fn import_data(&self, id: &str, db: &str, path: &std::path::Path, o: &crate::data_import::SourceOptions, plan: &crate::data_import::ImportPlan, progress: impl FnMut(u64) -> bool) -> Result<u64> {
+        if self.config(id)?.read_only == Some(true) {
+            return Err(msg("This connection is read-only."));
+        }
+        let mut conn = self.conn(id, None).await?;
+        crate::data_import::run(&mut conn, db, path, o, plan, progress).await
+    }
+
     pub fn preview_changes(&self, db: &str, table: &str, cols: &[Column], changes: &[RowChange]) -> Vec<String> {
         changes.iter().map(|c| Self::change_sql(db, table, cols, c)).collect()
     }
@@ -479,4 +487,25 @@ impl Engine {
 /// Keeps a JSON value from the UI as a plain value (helper for callers).
 pub fn cell(v: impl Into<J>) -> Cell {
     v.into()
+}
+
+/// Tauri runs commands on a thread pool, so every engine future must be `Send`.
+/// This never runs; it fails to compile if a future stops being `Send`.
+#[allow(dead_code, unreachable_code, clippy::diverging_sub_expression)]
+fn _futures_are_send(e: &Engine) {
+    fn send<T: Send>(_: T) {}
+    let p = std::path::Path::new("");
+    send(e.connect(""));
+    send(e.databases(""));
+    send(e.objects("", ""));
+    send(e.schema("", ""));
+    send(e.table_page("", "", "", PageRequest { page: 0, page_size: 1, sort: None, filter: String::new() }));
+    send(e.query("", None, ""));
+    send(e.apply_changes("", "", "", &[], &[]));
+    send(e.export("", "", "", "", "csv", p, |_| true));
+    send(e.dump("", todo!(), p, |_, _, _, _| true));
+    send(e.import_sql("", None, p, false, |_, _, _| true));
+    send(e.import_data("", "", p, todo!(), todo!(), |_| true));
+    send(e.test_connection(todo!(), None));
+    send(e.save_connection(todo!(), None));
 }
