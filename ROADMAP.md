@@ -1,0 +1,91 @@
+# MySQL Lens — Reja (Roadmap)
+
+Bu fayl desktop ilova (`app/`, Tauri + Rust) uchun keyingi ishlarni jamlaydi.
+Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
+
+---
+
+## Navbatdagi versiya (0.3.0)
+
+### ⬜ 1. Avtomatik yangilanish
+
+**Maqsad:** yangi versiya chiqsa, ilova o'zi xabar beradi va bir tugma bilan yangilanadi. Exe'ni qo'lda yuklab o'tirish kerak bo'lmaydi.
+
+**Qanday ishlaydi:**
+- Ilova ochilganda (va menyudan qo'lda) GitHub Releases'dagi eng oxirgi versiya tekshiriladi.
+- Yangi versiya bo'lsa, pastda xabar chiqadi: *"MySQL Lens 0.3.0 chiqdi — Yangilash"*. Bosilganda yuklab olinadi, o'rnatiladi va ilova qayta ishga tushadi.
+- "Keyinroq" tugmasi ham bo'ladi. O'tkazib yuborilgan versiya haqida qayta bezovta qilinmaydi.
+
+**Texnik reja:**
+- `tauri-plugin-updater` va `tauri-plugin-process` (qayta ishga tushirish uchun).
+- Yangilanish fayllari kalit bilan imzolanadi. Imzolash kaliti GitHub Secrets'da saqlanadi (`TAURI_SIGNING_PRIVATE_KEY`), ochiq kalit esa `tauri.conf.json`ga yoziladi. Bu Windows kod imzosidan alohida narsa va bepul.
+- CI release'ga `latest.json` va `.sig` fayllarini qo'shadi (`createUpdaterArtifacts`).
+- Yangilanish manzili: `https://github.com/azizdevfull/mysql-lens/releases/latest/download/latest.json`
+
+**Tayyor deb hisoblanadi, agar:**
+- 0.3.0 o'rnatilgan kompyuterda 0.3.1 chiqarilganda, ilova o'zi taklif qilsa va bir bosishda yangilansa.
+- Internet bo'lmasa yoki GitHub javob bermasa, ilova jim ishlashda davom etsa.
+- Imzosi noto'g'ri fayl o'rnatilmasa.
+
+---
+
+### ⬜ 2. Sessiyani tiklash
+
+**Maqsad:** ilova yopilib qayta ochilganda hamma narsa qolgan joyida turadi.
+
+**Nima tiklanadi:**
+- Ochiq tablar (jadvallar va SQL so'rovlar) va qaysi biri faol bo'lgani.
+- Har bir SQL tab'dagi yozilgan, lekin saqlanmagan matn.
+- Har bir tab qaysi ulanish va bazaga bog'langani.
+- Jadval tab'larida filtr, sort va sahifa raqami.
+- Panel o'lchamlari, Explorer'da ochilgan tugunlar, tema.
+
+**Texnik reja:**
+- Holat ilova papkasidagi JSON faylga (`session.json`) yoziladi: o'zgarishlardan ~1 soniya keyin va ilova yopilayotganda.
+- Ochilishda ulanishlarga avtomatik ulanilmaydi. Tab birinchi marta ochilganda ulanadi, shuning uchun ishga tushish sekinlashmaydi va parol so'rovlari chiqmaydi.
+- O'chirilgan ulanish yoki jadvalga tegishli tablar jimgina tashlab ketiladi.
+- Sozlamalarda o'chirib qo'yish imkoniyati: "Ochilishda oldingi sessiyani tiklash".
+
+**Tayyor deb hisoblanadi, agar:**
+- 3 ta SQL tab'ga matn yozib, ilovani yopib qayta ochganda matnlar va faol tab joyida bo'lsa.
+- Ilova kutilmaganda yopilsa ham (crash), ko'pi bilan oxirgi ~1 soniyalik o'zgarish yo'qolsa.
+- Ochilish vaqti sezilarli darajada oshmasa.
+
+---
+
+### ⬜ 3. Foreign key bo'ylab yurish
+
+**Maqsad:** bog'langan ma'lumotlarga bir bosishda o'tish.
+
+**Qanday ishlaydi:**
+- **Oldinga:** `orders.customer_id = 294` katakchasida havola belgisi chiqadi. `Ctrl+bosish` (yoki o'ng tugma → "customers'dagi qatorni ochish") `customers` jadvalini `id = 294` filtri bilan ochadi.
+- **Orqaga:** Row Inspector'da "Bu qatorga havola qilganlar" bo'limi chiqadi, masalan *orders — 12 ta qator*. Bosilganda `orders` jadvali `customer_id = 294` filtri bilan ochiladi.
+- Foreign key ustunlarining sarlavhasida maxsus belgi bo'ladi, ustiga kelganda qaysi jadvalga bog'langani ko'rsatiladi.
+- Bir nechta ustunli (composite) foreign key'lar ham ishlaydi.
+
+**Texnik reja:**
+- Rust (`lens-core`): `information_schema.KEY_COLUMN_USAGE` va `REFERENTIAL_CONSTRAINTS` dan jadvalning chiquvchi va kiruvchi bog'lanishlarini o'qiydigan `foreign_keys(db, table)` funksiyasi. Natija schema bilan birga keshlanadi.
+- Orqa havolalar soni faqat tanlangan qator uchun, kerak bo'lganda hisoblanadi (`SELECT COUNT(*) … LIMIT`), shuning uchun katta jadvallarda sekinlashmaydi.
+- UI: grid'da foreign key katakchalari uchun havola ko'rinishi, context menu bandlari, Inspector'da yangi bo'lim.
+- Foreign key e'lon qilinmagan bazalar (masalan, faqat nom bo'yicha `user_id`) uchun keyinroq ixtiyoriy "taxminiy bog'lanish" rejimi qo'shish mumkin.
+
+**Tayyor deb hisoblanadi, agar:**
+- `orders` → `customers` va teskari yo'nalishda bir bosishda o'tish ishlasa.
+- Composite foreign key bo'yicha to'g'ri filtr tuzilsa.
+- Foreign key'i yo'q jadvalda hech narsa buzilmasa va ortiqcha so'rov yuborilmasa.
+
+---
+
+## Keyinroq (g'oyalar)
+
+- Saqlangan so'rovlar va snippetlar (`Ctrl+K` orqali)
+- Jadval strukturasini tahrirlash (ustun, indeks, foreign key) — `ALTER TABLE` preview bilan
+- Schema compare: staging ↔ production, farqni tuzatadigan SQL bilan
+- Server monitori: processlist va KILL, sekin so'rovlar, holat grafiklari
+- EXPLAIN vizualizatori
+- ER diagramma
+- Avtomatik backup (jadval bo'yicha dump)
+- AI yordamchi: o'zbekcha savoldan SQL
+- So'rov natijasidan grafik
+- Laravel generator: jadvaldan Eloquent model va migration
+- Windows kod imzosi (SignPath Foundation) — Smart App Control / SmartScreen ogohlantirishlarini yo'qotish uchun
