@@ -5,6 +5,7 @@ use std::sync::Arc;
 use lens_core::engine::Engine;
 use lens_core::error::LensError;
 use lens_core::history::{HistoryEntry, HistoryStore};
+use lens_core::snippets::{Snippet, SnippetStore};
 use lens_core::store::{ConnStore, SecretStore};
 use lens_core::types::*;
 use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -46,6 +47,7 @@ impl SecretStore for KeychainSecrets {
 struct AppState {
     engine: Engine,
     history: HistoryStore,
+    snippets: SnippetStore,
     /// Open tabs and their state, written by the UI (`session.json`).
     session_path: PathBuf,
 }
@@ -152,10 +154,11 @@ async fn table_page(s: State<'_, AppState>, id: String, db: String, table: Strin
 }
 
 #[tauri::command]
-async fn query(s: State<'_, AppState>, id: String, db: Option<String>, sql: String, statements: Option<Vec<String>>, run_id: Option<String>) -> R<Vec<ResultSet>> {
-    // The editor sends statements it already split (so procedure bodies stay whole) and a run id for Cancel.
+async fn query(s: State<'_, AppState>, id: String, db: Option<String>, sql: String, statements: Option<Vec<String>>, run_id: Option<String>, tx: Option<String>) -> R<Vec<ResultSet>> {
+    // The editor sends statements it already split (so procedure bodies stay whole), a run id
+    // for Cancel, and in manual-commit mode the key of its transaction.
     let (res, sql) = match statements {
-        Some(list) => (s.engine.run_statements(&id, db.as_deref(), &list, run_id.as_deref()).await, lens_core::history::join_statements(&list)),
+        Some(list) => (s.engine.run_statements(&id, db.as_deref(), &list, run_id.as_deref(), tx.as_deref()).await, lens_core::history::join_statements(&list)),
         None => (s.engine.query(&id, db.as_deref(), &sql).await, sql),
     };
     let name = s.engine.list_connections().into_iter().find(|c| c.id == id).map(|c| c.name).unwrap_or_default();
@@ -166,6 +169,37 @@ async fn query(s: State<'_, AppState>, id: String, db: Option<String>, sql: Stri
     // History is a convenience: a failed write must not fail the query.
     let _ = s.history.add(entry);
     res
+}
+
+#[tauri::command]
+async fn tx_end(s: State<'_, AppState>, id: String, tx: String, commit: bool) -> R<()> {
+    s.engine.tx_end(&id, &tx, commit).await
+}
+
+#[tauri::command]
+async fn tx_close(s: State<'_, AppState>, tx: String) -> R<()> {
+    s.engine.tx_close(&tx).await;
+    Ok(())
+}
+
+#[tauri::command]
+async fn db_foreign_keys(s: State<'_, AppState>, id: String, db: String) -> R<Vec<ForeignKey>> {
+    s.engine.db_foreign_keys(&id, &db).await
+}
+
+#[tauri::command]
+async fn snippets_list(s: State<'_, AppState>) -> R<Vec<Snippet>> {
+    Ok(s.snippets.list())
+}
+
+#[tauri::command]
+async fn snippets_save(s: State<'_, AppState>, snippet: Snippet) -> R<Snippet> {
+    s.snippets.save(snippet)
+}
+
+#[tauri::command]
+async fn snippets_delete(s: State<'_, AppState>, id: String) -> R<()> {
+    s.snippets.delete(&id)
 }
 
 #[tauri::command]
@@ -284,7 +318,8 @@ pub fn run() {
             let dir = app.path().app_config_dir()?;
             let engine = Engine::new(ConnStore::new(dir.join("connections.json")), Arc::new(KeychainSecrets));
             let history = HistoryStore::new(dir.join("history.jsonl"), HISTORY_CAP);
-            app.manage(AppState { engine, history, session_path: dir.join("session.json") });
+            let snippets = SnippetStore::new(dir.join("snippets.json"));
+            app.manage(AppState { engine, history, snippets, session_path: dir.join("session.json") });
 
             // Same flags Tauri uses by default; the smoke test can additionally
             // ask for a DevTools port (never enabled for normal starts).
@@ -330,6 +365,12 @@ pub fn run() {
             import_preview,
             import_data,
             cancel_query,
+            tx_end,
+            tx_close,
+            db_foreign_keys,
+            snippets_list,
+            snippets_save,
+            snippets_delete,
             session_load,
             session_save,
             history_list,
