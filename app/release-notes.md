@@ -1,5 +1,3 @@
-- Foreign keys: Ctrl+click a foreign key value (or right-click → Open) to open the row it points at
-- The row panel lists the tables that point at the selected row, with counts; click one to see those rows
-- Value editor for JSON and binary cells (Enter or double-click): JSON is formatted and checked, images are previewed, other binary data is shown as hex; save to or load from a file
-- Format SQL with Shift+Alt+F or the wand button (DELIMITER blocks and routine bodies are left as written)
-- Right-click a cell: copy the value, filter by it, or open the value editor
+- Manual commit mode for query tabs: changes stay in one transaction until you press Commit or Rollback; the toolbar shows how many statements are not committed yet
+- Saved queries: Ctrl+S in a query tab saves its SQL under a name; open them from Ctrl+K, rename or delete them in "Saved queries…"
+- ER diagram of a database (right-click a database, or Ctrl+K → ER diagram): tables, columns and foreign keys; drag, zoom, click a table to highlight its links, double-click to open it

@@ -99,14 +99,20 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 - ✅ Qiymat muharriri (JSON/BLOB): JSON formatlanadi va tekshiriladi (noto'g'ri JSON saqlanmaydi), rasmlar (PNG, JPEG, GIF, WEBP, BMP, ICO) preview qilinadi, qolgani hex dump ko'rinishida chiqadi. Faylga saqlash, fayldan yuklash (32 MB gacha).
 - ✅ Windows'da bir buyruq bilan o'rnatish: `irm https://raw.githubusercontent.com/azizdevfull/mysql-lens/main/install.ps1 | iex`.
 
+## Tayyor bo'lganlar (0.7.0)
+
+- ✅ Transaction rejimi: query tab'da "Auto-commit" ↔ "Manual commit". Manual rejimda tab o'zining alohida ulanishida (`autocommit = 0`) ishlaydi, Commit/Rollback tugmalari va "N uncommitted · M rows" belgisi bor. DDL va boshqa implicit commit qiladigan statementlardan keyin xabar chiqadi. Commit qilinmagan tab yopilganda yoki ulanish almashtirilganda tasdiq so'raladi, keyin rollback qilinadi. Hisob UI'da statementlarning birinchi so'ziga qarab yuritiladi (mysql_async transaction holatini ochiq bermaydi).
+- ✅ Saqlangan so'rovlar: query tab'da `Ctrl+S` saqlaydi (`Ctrl+Shift+S` yangi nom bilan), `Ctrl+K` da "Saved queries" guruhi, "Saved queries…" dialogida qidirish, nomini o'zgartirish, o'chirish. `snippets.json` ilova papkasida, buzilgan fayl `.bak` qilib saqlanadi.
+- ✅ ER diagramma: bazaning jadvallari, ustunlari va foreign key'lari (dagre layout, faqat ochilganda yuklanadi). Sudrash, zoom, jadvalni tanlab bog'lanishlarini ajratish, ikki marta bosib ochish, qidiruv, "Keys only" rejimi. Explorer'da bazaga o'ng tugma yoki `Ctrl+K` → "ER diagram".
+
 ## Keyinroq (g'oyalar)
 
-- Saqlangan so'rovlar va snippetlar (`Ctrl+K` orqali)
+- ER diagrammani PNG/SVG sifatida eksport qilish, joylashuvni saqlab qolish
+- Query natijalarida ham FK havolalari (`org_table` orqali)
 - Jadval strukturasini tahrirlash (ustun, indeks, foreign key) — `ALTER TABLE` preview bilan
 - Schema compare: staging ↔ production, farqni tuzatadigan SQL bilan
 - Server monitori: processlist va KILL, sekin so'rovlar, holat grafiklari
 - EXPLAIN vizualizatori
-- ER diagramma
 - Avtomatik backup (jadval bo'yicha dump)
 - AI yordamchi: o'zbekcha savoldan SQL
 - So'rov natijasidan grafik
