@@ -112,6 +112,41 @@ async fn schema(s: State<'_, AppState>, id: String, db: String) -> R<HashMap<Str
 }
 
 #[tauri::command]
+async fn foreign_keys(s: State<'_, AppState>, id: String, db: String, table: String) -> R<Relations> {
+    s.engine.foreign_keys(&id, &db, &table).await
+}
+
+#[tauri::command]
+async fn count_rows(s: State<'_, AppState>, id: String, items: Vec<CountRequest>, cap: u64) -> R<Vec<Option<u64>>> {
+    s.engine.count_rows(&id, &items, cap).await
+}
+
+/// One cell's full bytes as base64 (the grid only holds a preview of large values).
+#[tauri::command]
+async fn cell_bytes(s: State<'_, AppState>, id: String, db: String, table: String, column: String, columns: Vec<Column>, key: serde_json::Map<String, Cell>) -> R<String> {
+    Ok(lens_core::value::base64(&s.engine.cell_bytes(&id, &db, &table, &column, &columns, &key).await?))
+}
+
+/// Writes one cell's full bytes to `path` (Save to file in the value editor).
+#[tauri::command]
+async fn save_cell(s: State<'_, AppState>, id: String, db: String, table: String, column: String, columns: Vec<Column>, key: serde_json::Map<String, Cell>, path: PathBuf) -> R<u64> {
+    let bytes = s.engine.cell_bytes(&id, &db, &table, &column, &columns, &key).await?;
+    std::fs::write(&path, &bytes)?;
+    Ok(bytes.len() as u64)
+}
+
+/// A file's contents as a `0x…` hex literal, to load it into a binary cell.
+#[tauri::command]
+async fn file_hex(path: PathBuf) -> R<String> {
+    let len = std::fs::metadata(&path)?.len();
+    if len > lens_core::engine::MAX_CELL_BYTES {
+        return Err(lens_core::error::msg(format!("File is {} MB; the limit is {} MB.", len / 1_048_576, lens_core::engine::MAX_CELL_BYTES / 1_048_576)));
+    }
+    let bytes = tokio::task::spawn_blocking(move || std::fs::read(path)).await.map_err(|e| lens_core::error::msg(e.to_string()))??;
+    Ok(lens_core::value::hex(&bytes))
+}
+
+#[tauri::command]
 async fn table_page(s: State<'_, AppState>, id: String, db: String, table: String, req: PageRequest) -> R<TablePage> {
     s.engine.table_page(&id, &db, &table, req).await
 }
@@ -281,6 +316,11 @@ pub fn run() {
             columns,
             schema,
             table_page,
+            foreign_keys,
+            count_rows,
+            cell_bytes,
+            save_cell,
+            file_hex,
             query,
             preview_changes,
             apply_changes,
