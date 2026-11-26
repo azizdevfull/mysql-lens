@@ -54,7 +54,7 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 
 ---
 
-### ⬜ 3. Foreign key bo'ylab yurish
+### ✅ 3. Foreign key bo'ylab yurish (0.6.0)
 
 **Maqsad:** bog'langan ma'lumotlarga bir bosishda o'tish.
 
@@ -69,6 +69,7 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 - Orqa havolalar soni faqat tanlangan qator uchun, kerak bo'lganda hisoblanadi (`SELECT COUNT(*) … LIMIT`), shuning uchun katta jadvallarda sekinlashmaydi.
 - UI: grid'da foreign key katakchalari uchun havola ko'rinishi, context menu bandlari, Inspector'da yangi bo'lim.
 - Foreign key e'lon qilinmagan bazalar (masalan, faqat nom bo'yicha `user_id`) uchun keyinroq ixtiyoriy "taxminiy bog'lanish" rejimi qo'shish mumkin.
+- 0.6.0 da qilingani: grid'da link ko'rinishi va `Ctrl+bosish`, o'ng tugma menyusi, Inspector'da maydon ostida havola va "Referenced by" bo'limi (1000 tagacha sanaydi). Allaqachon ochiq jadval tab'i yangi filtr bilan qayta yuklanadi. SQL query natijalarida havolalar hali yo'q (ustunlar qaysi jadvalga tegishli ekani aniq emas).
 
 **Tayyor deb hisoblanadi, agar:**
 - `orders` → `customers` va teskari yo'nalishda bir bosishda o'tish ishlasa.
@@ -91,6 +92,13 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 
 ---
 
+## Tayyor bo'lganlar (0.6.0)
+
+- ✅ Foreign key bo'ylab yurish (yuqoridagi 3-band).
+- ✅ SQL formatter: `Shift+Alt+F` yoki tayoqcha tugmasi. Tanlangan qism yoki butun matn formatlanadi, `DELIMITER` qatorlari va procedure/trigger tanalari o'zgarmaydi. `sql-formatter` faqat birinchi ishlatilganda yuklanadi.
+- ✅ Qiymat muharriri (JSON/BLOB): JSON formatlanadi va tekshiriladi (noto'g'ri JSON saqlanmaydi), rasmlar (PNG, JPEG, GIF, WEBP, BMP, ICO) preview qilinadi, qolgani hex dump ko'rinishida chiqadi. Faylga saqlash, fayldan yuklash (32 MB gacha).
+- ✅ Windows'da bir buyruq bilan o'rnatish: `irm https://raw.githubusercontent.com/azizdevfull/mysql-lens/main/install.ps1 | iex`.
+
 ## Keyinroq (g'oyalar)
 
 - Saqlangan so'rovlar va snippetlar (`Ctrl+K` orqali)
@@ -103,4 +111,5 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 - AI yordamchi: o'zbekcha savoldan SQL
 - So'rov natijasidan grafik
 - Laravel generator: jadvaldan Eloquent model va migration
+- winget paketi (`winget install MySQLLens`): `microsoft/winget-pkgs` ga manifest PR yuborish kerak
 - Windows kod imzosi (SignPath Foundation) — Smart App Control / SmartScreen ogohlantirishlarini yo'qotish uchun

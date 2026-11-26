@@ -1,3 +1,5 @@
-- Session restore: open tabs, the active tab, query text and each table's page, sort and filter come back after a restart
-- Nothing connects at startup: a restored tab connects the first time you open it
-- Turn it off with "Stop reopening tabs on startup" in the command palette (Ctrl+K)
+- Foreign keys: Ctrl+click a foreign key value (or right-click → Open) to open the row it points at
+- The row panel lists the tables that point at the selected row, with counts; click one to see those rows
+- Value editor for JSON and binary cells (Enter or double-click): JSON is formatted and checked, images are previewed, other binary data is shown as hex; save to or load from a file
+- Format SQL with Shift+Alt+F or the wand button (DELIMITER blocks and routine bodies are left as written)
+- Right-click a cell: copy the value, filter by it, or open the value editor
