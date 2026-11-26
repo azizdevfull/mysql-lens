@@ -46,6 +46,8 @@ impl SecretStore for KeychainSecrets {
 struct AppState {
     engine: Engine,
     history: HistoryStore,
+    /// Open tabs and their state, written by the UI (`session.json`).
+    session_path: PathBuf,
 }
 
 /// Executed batches kept in the history file.
@@ -134,6 +136,27 @@ async fn query(s: State<'_, AppState>, id: String, db: Option<String>, sql: Stri
 #[tauri::command]
 async fn cancel_query(s: State<'_, AppState>, run_id: String) -> R<bool> {
     s.engine.cancel(&run_id).await
+}
+
+#[tauri::command]
+async fn session_load(s: State<'_, AppState>) -> R<Option<String>> {
+    match std::fs::read_to_string(&s.session_path) {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Written through a temporary file, so a crash mid-write keeps the previous session.
+#[tauri::command]
+async fn session_save(s: State<'_, AppState>, data: String) -> R<()> {
+    if let Some(dir) = s.session_path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let tmp = s.session_path.with_extension("json.tmp");
+    std::fs::write(&tmp, data)?;
+    std::fs::rename(tmp, &s.session_path)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -226,7 +249,7 @@ pub fn run() {
             let dir = app.path().app_config_dir()?;
             let engine = Engine::new(ConnStore::new(dir.join("connections.json")), Arc::new(KeychainSecrets));
             let history = HistoryStore::new(dir.join("history.jsonl"), HISTORY_CAP);
-            app.manage(AppState { engine, history });
+            app.manage(AppState { engine, history, session_path: dir.join("session.json") });
 
             // Same flags Tauri uses by default; the smoke test can additionally
             // ask for a DevTools port (never enabled for normal starts).
@@ -267,6 +290,8 @@ pub fn run() {
             import_preview,
             import_data,
             cancel_query,
+            session_load,
+            session_save,
             history_list,
             history_delete,
             history_clear,

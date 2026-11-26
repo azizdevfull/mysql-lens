@@ -116,6 +116,9 @@ export interface Backend {
   pickDataFile(): Promise<string | null>;
   importPreview(path: string, opts?: SourceOptions): Promise<ImportPreview>;
   importData(id: string, db: string, path: string, opts: SourceOptions, plan: ImportPlan, onProgress: (rows: number) => void): Promise<number>;
+  /** The saved session (open tabs) as JSON text, or null if none was saved. */
+  loadSession(): Promise<string | null>;
+  saveSession(json: string): Promise<void>;
   /** Executed queries, newest first. */
   historyList(): Promise<HistoryEntry[]>;
   historyDelete(id: string): Promise<void>;

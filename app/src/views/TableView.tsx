@@ -31,8 +31,9 @@ export function TableView({ tab }: { tab: Tab }) {
   const conn = useApp((s) => s.connections.find((c) => c.id === connId));
   const loadSchema = useApp((s) => s.schema);
   const [schema, setSchema] = useState<Record<string, Column[]>>();
-  const [state, setState] = useState({ page: 0, pageSize: 200, sort: null as SortSpec | null, filter: '' });
-  const [query, setQuery] = useState(() => buildTableQuery(table, { page: 0, pageSize: 200, sort: null, filter: '' }));
+  // A restored tab reopens on its saved page, sort and filter.
+  const [state, setState] = useState(() => tab.tableState ?? { page: 0, pageSize: 200, sort: null as SortSpec | null, filter: '' });
+  const [query, setQuery] = useState(() => buildTableQuery(table, state));
   const [data, setData] = useState<Data>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -66,6 +67,7 @@ export function TableView({ tab }: { tab: Tab }) {
         const p = await backend.tablePage(connId, db, table, next);
         setData({ ...p, custom: false });
         setState(next);
+        useApp.getState().updateTab(tab.id, { tableState: next });
         setQuery(buildTableQuery(table, next));
         resetEdits();
         setDataKey(`${Date.now()}`);

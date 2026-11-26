@@ -4,7 +4,8 @@ import { toast } from 'sonner';
 import { AlertCircle, CheckCircle2, ChevronDown, Database, History, ListChecks, Loader2, Play, PlayCircle, Square, Table2, TerminalSquare } from 'lucide-react';
 import { openHistory } from '@/components/HistoryDialog';
 import { backend } from '@/lib/backend';
-import { useApp, type Tab } from '@/lib/store';
+import { liveSql, useApp, type Tab } from '@/lib/store';
+import { scheduleSessionSave } from '@/lib/session';
 import type { Column, ResultSet } from '@/lib/types';
 import { cn, formatMs } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -15,8 +16,6 @@ import { ExportMenu } from '@/components/ExportMenu';
 import { SqlEditor } from '@/components/SqlEditor';
 import { confirmRun } from '@/components/confirmRun';
 
-/** Current editor text of each query tab (for duplicating tabs). */
-export const liveSql = new Map<string, string>();
 
 export function QueryView({ tab }: { tab: Tab }) {
   const connections = useApp((s) => s.connections);
@@ -91,6 +90,7 @@ export function QueryView({ tab }: { tab: Tab }) {
   const onChange = (v: string) => {
     setSql(v);
     liveSql.set(tab.id, v);
+    scheduleSessionSave();
     if (!tab.dirty) updateTab(tab.id, { dirty: true });
   };
 

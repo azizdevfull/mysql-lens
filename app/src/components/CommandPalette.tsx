@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Database, Download, Eye, FileDown, FilePlus2, FileUp, History, Moon, Plus, RefreshCw, Server, Sun, Table2 } from 'lucide-react';
+import { Database, Download, Eye, FileDown, FilePlus2, FileUp, History, Moon, Plus, RefreshCw, RotateCcw, Server, Sun, Table2 } from 'lucide-react';
 import { openHistory } from '@/components/HistoryDialog';
 import { exportConnections, importConnections } from '@/components/Explorer';
 import { checkForUpdates } from '@/lib/updater';
@@ -24,7 +24,8 @@ export function CommandPalette() {
   const connections = useApp((s) => s.connections);
   const connState = useApp((s) => s.connState);
   const theme = useApp((s) => s.theme);
-  const { openTable, openQuery, openConnDialog, toggleTheme, refreshTree } = useApp.getState();
+  const { openTable, openQuery, openConnDialog, toggleTheme, refreshTree, setRestoreSession } = useApp.getState();
+  const restoreSession = useApp((s) => s.restoreSession);
   const [hits, setHits] = useState<Hit[]>([]);
 
   useEffect(() => {
@@ -85,6 +86,9 @@ export function CommandPalette() {
               </CommandItem>
               <CommandItem onSelect={() => run(toggleTheme)}>
                 {theme === 'dark' ? <Sun /> : <Moon />} Switch to {theme === 'dark' ? 'light' : 'dark'} theme
+              </CommandItem>
+              <CommandItem onSelect={() => run(() => setRestoreSession(!restoreSession))}>
+                <RotateCcw /> {restoreSession ? 'Stop reopening tabs on startup' : 'Reopen tabs on startup'}
               </CommandItem>
               <CommandItem onSelect={() => run(refreshTree)}>
                 <RefreshCw /> Refresh explorer

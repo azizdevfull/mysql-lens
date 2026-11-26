@@ -299,6 +299,20 @@ export const mockBackend: Backend = {
     cancelled.add(runId);
     return true;
   },
+  async loadSession() {
+    try {
+      return localStorage.getItem('demo-session');
+    } catch {
+      return null;
+    }
+  },
+  async saveSession(json) {
+    try {
+      localStorage.setItem('demo-session', json);
+    } catch {
+      // ignore: the demo simply starts fresh
+    }
+  },
   async historyList() {
     return [...history].reverse();
   },

@@ -1,3 +1,3 @@
-- Cancel now really stops a running query: the statement is killed on the server and the rest are skipped
-- Stored procedures, functions and triggers run as one statement (DELIMITER is respected), including DDL opened with "Show DDL"
-- Safety: UPDATE/DELETE without WHERE, DROP and TRUNCATE ask before running. On a red-tagged (production) connection every write asks, risky ones need the connection name typed, and the work area gets a red frame
+- Session restore: open tabs, the active tab, query text and each table's page, sort and filter come back after a restart
+- Nothing connects at startup: a restored tab connects the first time you open it
+- Turn it off with "Stop reopening tabs on startup" in the command palette (Ctrl+K)

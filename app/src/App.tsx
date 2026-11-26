@@ -16,7 +16,9 @@ import { DumpDialog } from '@/components/DumpDialog';
 import { ImportWizard } from '@/components/ImportWizard';
 import { HistoryDialog, openHistory } from '@/components/HistoryDialog';
 import { TableView } from '@/views/TableView';
-import { QueryView, colorOf, liveSql } from '@/views/QueryView';
+import { QueryView, colorOf } from '@/views/QueryView';
+import { liveSql } from '@/lib/store';
+import { startSession } from '@/lib/session';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/menu';
 import releaseNotes from '../release-notes.md?raw';
 import { Welcome } from '@/views/Welcome';
@@ -163,10 +165,13 @@ export default function App() {
   const theme = useApp((s) => s.theme);
   const { load, setPalette, openQuery, closeTab } = useApp.getState();
   // A red frame around the work area while a production (red-tagged) connection is in use.
+  // Views mount the first time their tab is shown, so restored tabs do not all connect at startup.
+  const [shown, setShown] = useState<Set<string>>(() => new Set([active]));
+  useEffect(() => setShown((s) => (s.has(active) ? s : new Set(s).add(active))), [active]);
   const prod = useApp((s) => isProduction(s.connections.find((c) => c.id === s.tabs.find((t) => t.id === s.active)?.connId)));
 
   useEffect(() => {
-    void load();
+    void load().then(startSession);
     const t = window.setTimeout(() => void checkForUpdates(false), 4000);
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
@@ -207,7 +212,7 @@ export default function App() {
               <div className={cn('relative min-h-0 flex-1', prod && 'after:pointer-events-none after:absolute after:inset-0 after:z-10 after:ring-2 after:ring-destructive/70 after:ring-inset')}>
                 {tabs.map((t) => (
                   <div key={t.id} className={cn('absolute inset-0', t.id !== active && 'invisible')}>
-                    {t.kind === 'welcome' ? <Welcome /> : t.kind === 'table' ? <TableView tab={t} /> : <QueryView tab={t} />}
+                    {!shown.has(t.id) && t.id !== active ? null : t.kind === 'welcome' ? <Welcome /> : t.kind === 'table' ? <TableView tab={t} /> : <QueryView tab={t} />}
                   </div>
                 ))}
               </div>

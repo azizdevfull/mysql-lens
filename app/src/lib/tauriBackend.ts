@@ -68,6 +68,8 @@ export const tauriBackend: Backend = {
       off();
     }
   },
+  loadSession: () => invoke('session_load'),
+  saveSession: (data) => invoke('session_save', { data }),
   historyList: () => invoke('history_list'),
   historyDelete: (id) => invoke('history_delete', { id }),
   historyClear: () => invoke('history_clear'),

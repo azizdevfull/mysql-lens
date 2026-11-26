@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { backend } from './backend';
-import type { Column, Connection } from './types';
+import type { Column, Connection, PageRequest } from './types';
 
 export type TabKind = 'welcome' | 'table' | 'query';
 
@@ -15,7 +15,15 @@ export interface Tab {
   isView?: boolean;
   sql?: string;
   dirty?: boolean;
+  /** Table tabs: page, sort and filter, kept for session restore. */
+  tableState?: PageRequest;
 }
+
+/** Current editor text of each query tab (kept out of the store so typing does not re-render). */
+export const liveSql = new Map<string, string>();
+
+/** A tab as saved in the session file. */
+export type SavedTab = Pick<Tab, 'kind' | 'title' | 'connId' | 'db' | 'table' | 'isView' | 'sql' | 'tableState'>;
 
 export type ConnState = 'off' | 'connecting' | 'on' | 'error';
 
@@ -30,8 +38,13 @@ interface State {
   connDialog: { open: boolean; editing?: Connection };
   schemaCache: Record<string, Record<string, Column[]>>;
   treeVersion: number;
+  /** Reopen the previous session's tabs on startup. */
+  restoreSession: boolean;
 
   load(): Promise<void>;
+  /** Replaces the tabs with saved ones (new ids). Keeps Welcome when the list is empty. */
+  restoreTabs(tabs: SavedTab[], active: number): void;
+  setRestoreSession(on: boolean): void;
   connect(id: string): Promise<boolean>;
   disconnect(id: string): Promise<void>;
   openTable(connId: string, db: string, table: string, isView?: boolean): void;
@@ -63,6 +76,14 @@ const initialTheme = (() => {
 })();
 document.documentElement.classList.toggle('dark', initialTheme === 'dark');
 
+const initialRestore = (() => {
+  try {
+    return localStorage.getItem('restoreSession') !== 'off';
+  } catch {
+    return true;
+  }
+})();
+
 export const useApp = create<State>((set, get) => ({
   connections: [],
   connState: {},
@@ -74,9 +95,25 @@ export const useApp = create<State>((set, get) => ({
   connDialog: { open: false },
   schemaCache: {},
   treeVersion: 0,
+  restoreSession: initialRestore,
 
   async load() {
     set({ connections: await backend.listConnections() });
+  },
+
+  restoreTabs(saved, active) {
+    const tabs: Tab[] = saved.map((t) => ({ ...t, id: uid(t.kind === 'table' ? 't' : 'q') }));
+    if (!tabs.length) return set({ tabs: [welcome], active: 'welcome' });
+    set({ tabs, active: tabs[Math.min(Math.max(active, 0), tabs.length - 1)].id });
+  },
+
+  setRestoreSession(on) {
+    try {
+      localStorage.setItem('restoreSession', on ? 'on' : 'off');
+    } catch {
+      // ignore
+    }
+    set({ restoreSession: on });
   },
 
   async connect(id) {

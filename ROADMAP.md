@@ -29,7 +29,7 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 
 ---
 
-### ⬜ 2. Sessiyani tiklash
+### ✅ 2. Sessiyani tiklash (0.5.0)
 
 **Maqsad:** ilova yopilib qayta ochilganda hamma narsa qolgan joyida turadi.
 
@@ -45,6 +45,7 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 - Ochilishda ulanishlarga avtomatik ulanilmaydi. Tab birinchi marta ochilganda ulanadi, shuning uchun ishga tushish sekinlashmaydi va parol so'rovlari chiqmaydi.
 - O'chirilgan ulanish yoki jadvalga tegishli tablar jimgina tashlab ketiladi.
 - Sozlamalarda o'chirib qo'yish imkoniyati: "Ochilishda oldingi sessiyani tiklash".
+- 0.5.0 da qilingani: tablar, faol tab, SQL matn, jadval sahifa/sort/filtri. Panel o'lchamlari va tema avvaldan saqlanadi. Explorer'dagi ochiq tugunlar hali tiklanmaydi (ular ulanishni talab qiladi). O'chirish: `Ctrl+K` → "Stop reopening tabs on startup".
 
 **Tayyor deb hisoblanadi, agar:**
 - 3 ta SQL tab'ga matn yozib, ilovani yopib qayta ochganda matnlar va faol tab joyida bo'lsa.
