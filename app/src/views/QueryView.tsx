@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
-import { AlertCircle, CheckCircle2, ChevronDown, Database, History, ListChecks, Loader2, Play, PlayCircle, Square, Table2, TerminalSquare, WandSparkles } from 'lucide-react';
+import { AlertCircle, Bookmark, CheckCircle2, ChevronDown, Database, GitCommitHorizontal, History, ListChecks, Loader2, Play, PlayCircle, Square, Table2, TerminalSquare, Undo2, WandSparkles } from 'lucide-react';
 import { openHistory } from '@/components/HistoryDialog';
 import { backend } from '@/lib/backend';
-import { liveSql, useApp, type Tab } from '@/lib/store';
+import { closeGuards, liveSql, useApp, type Tab } from '@/lib/store';
+import { applyTxEffects } from '@/lib/txEffect';
+import { ask } from '@/components/AskDialog';
 import { scheduleSessionSave } from '@/lib/session';
 import type { Column, ResultSet } from '@/lib/types';
 import { cn, formatMs } from '@/lib/utils';
@@ -37,6 +39,21 @@ export function QueryView({ tab }: { tab: Tab }) {
   /** Id of the run in flight, for Cancel. */
   const runId = useRef<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  /** Manual-commit mode: statements run since the last Commit/Rollback, and the rows they changed. */
+  const manual = !!tab.manualCommit;
+  const [pending, setPending] = useState({ statements: 0, rows: 0 });
+  const [ending, setEnding] = useState(false);
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+
+  // Closing the tab rolls back what is not committed, so ask first.
+  useEffect(() => {
+    closeGuards.set(tab.id, () => !pendingRef.current.statements || window.confirm(`${pendingRef.current.statements} uncommitted statement(s) will be rolled back. Close the tab?`));
+    return () => {
+      closeGuards.delete(tab.id);
+      void backend.txClose(tab.id).catch(() => undefined);
+    };
+  }, [tab.id]);
 
   useEffect(() => {
     if (!tab.connId) return;
@@ -60,8 +77,13 @@ export function QueryView({ tab }: { tab: Tab }) {
       const timer = setInterval(() => setElapsed(Math.round(performance.now() - started)), 100);
       try {
         // Sent already split, so a procedure body with `;` inside stays one statement.
-        const res = await backend.query(tab.connId, tab.db, statements, id);
+        const res = await backend.query(tab.connId, tab.db, statements, id, manual ? tab.id : undefined);
         setResults(res);
+        if (manual) {
+          const next = applyTxEffects(pendingRef.current, res);
+          setPending({ statements: next.statements, rows: next.rows });
+          if (next.implicitBy) toast.info(`${next.implicitBy} committed the open transaction`, { description: 'MySQL commits before DDL and some other statements.' });
+        }
         const firstRows = res.findIndex((r) => r.kind === 'rows');
         setActive(res.some((r) => r.kind === 'error') || firstRows < 0 ? 'messages' : firstRows);
       } catch (e) {
@@ -74,8 +96,63 @@ export function QueryView({ tab }: { tab: Tab }) {
         setRunning(false);
       }
     },
-    [tab.connId, tab.db, tab.id, running, conn],
+    [tab.connId, tab.db, tab.id, running, conn, manual],
   );
+
+  /** Commit or roll back the tab's transaction. */
+  const endTx = async (commit: boolean) => {
+    if (!tab.connId || ending) return;
+    if (!commit && pending.statements) {
+      const ok = await ask({ title: 'Roll back?', description: `${pending.statements} statement(s) changing ${pending.rows.toLocaleString()} row(s) will be undone.`, confirm: 'Roll back', danger: true });
+      if (ok === null) return;
+    }
+    setEnding(true);
+    try {
+      await backend.txEnd(tab.connId, tab.id, commit);
+      setPending({ statements: 0, rows: 0 });
+      toast.success(commit ? 'Committed' : 'Rolled back');
+    } catch (e) {
+      toast.error(commit ? 'Commit failed' : 'Rollback failed', { description: (e as Error).message });
+    } finally {
+      setEnding(false);
+    }
+  };
+
+  const setManual = async (on: boolean) => {
+    if (!on && pending.statements) return toast.warning('Commit or roll back first', { description: 'There are uncommitted statements in this tab.' });
+    if (!on) await backend.txClose(tab.id).catch(() => undefined);
+    updateTab(tab.id, { manualCommit: on || undefined });
+    scheduleSessionSave();
+  };
+
+  /** Another connection: the open transaction cannot follow, so it is rolled back (after asking). */
+  const switchConnection = async (patch: Partial<Tab>) => {
+    if (patch.connId !== undefined && patch.connId !== tab.connId) {
+      if (pending.statements && !window.confirm(`${pending.statements} uncommitted statement(s) will be rolled back. Switch the connection?`)) return;
+      await backend.txClose(tab.id).catch(() => undefined);
+      setPending({ statements: 0, rows: 0 });
+    }
+    updateTab(tab.id, patch);
+  };
+
+  /** Ctrl+S: update the saved query this tab came from, or save a new one (always with asNew). */
+  const saveQuery = async (asNew: boolean) => {
+    const text = liveSql.get(tab.id) ?? sql;
+    if (!text.trim()) return toast.info('Nothing to save yet');
+    let name = tab.snippetId && !asNew ? tab.title : null;
+    if (!name) {
+      name = await ask({ title: asNew && tab.snippetId ? 'Save as a new query' : 'Save query', description: 'Saved queries open from Ctrl+K.', confirm: 'Save', input: { placeholder: 'Name, e.g. Monthly sales', initial: tab.snippetId ? `${tab.title} (copy)` : '' } });
+      if (name === null) return;
+    }
+    try {
+      const old = tab.snippetId && !asNew ? (await backend.snippetsList()).find((x) => x.id === tab.snippetId) : undefined;
+      const saved = await backend.snippetsSave({ id: old?.id ?? '', name, sql: text, connId: tab.connId, db: tab.db, created: old?.created ?? 0, updated: 0 });
+      updateTab(tab.id, { title: saved.name, snippetId: saved.id, dirty: false });
+      toast.success(`Saved “${saved.name}”`);
+    } catch (e) {
+      toast.error('Could not save the query', { description: (e as Error).message });
+    }
+  };
 
   const cancel = async () => {
     const id = runId.current;
@@ -122,7 +199,7 @@ export function QueryView({ tab }: { tab: Tab }) {
           <DropdownMenuContent align="start" className="w-64">
             <DropdownMenuLabel>Connection</DropdownMenuLabel>
             {connections.map((c) => (
-              <DropdownMenuItem key={c.id} onSelect={() => updateTab(tab.id, { connId: c.id, db: c.database })}>
+              <DropdownMenuItem key={c.id} onSelect={() => void switchConnection({ connId: c.id, db: c.database })}>
                 <span className="size-2 rounded-full" style={{ backgroundColor: colorOf(c.color) }} />
                 {c.name}
                 {c.id === tab.connId && <CheckCircle2 className="ml-auto text-primary" />}
@@ -165,11 +242,41 @@ export function QueryView({ tab }: { tab: Tab }) {
             <WandSparkles />
           </Button>
         </Tooltip>
+        <Tooltip content={tab.snippetId ? 'Save query (Ctrl+Shift+S: save as new)' : 'Save query'} shortcut="Ctrl+S">
+          <Button size="icon-sm" variant="ghost" onClick={() => void saveQuery(false)}>
+            <Bookmark className={cn(tab.snippetId && 'fill-current text-primary')} />
+          </Button>
+        </Tooltip>
         <Tooltip content="Query history" shortcut="Ctrl+H">
           <Button size="icon-sm" variant="ghost" onClick={openHistory}>
             <History />
           </Button>
         </Tooltip>
+        <div className="mx-1 h-5 w-px bg-border" />
+        <Tooltip content={manual ? 'Manual commit: changes stay in one transaction until you commit' : 'Auto-commit: every statement is saved at once'}>
+          <button
+            onClick={() => void setManual(!manual)}
+            className={cn('flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition-colors', manual ? 'border-warning/50 bg-warning/10 text-warning' : 'text-muted-foreground hover:text-foreground')}
+          >
+            <span className={cn('size-1.5 rounded-full', manual ? 'bg-warning' : 'bg-success')} />
+            {manual ? 'Manual commit' : 'Auto-commit'}
+          </button>
+        </Tooltip>
+        {manual && (
+          <>
+            {pending.statements > 0 && (
+              <Badge variant="warning" className="tabular-nums">
+                {pending.statements} uncommitted · {pending.rows.toLocaleString()} row{pending.rows === 1 ? '' : 's'}
+              </Badge>
+            )}
+            <Button size="sm" variant="outline" className="h-7 border-success/50 text-success hover:bg-success/10" disabled={ending || running} onClick={() => void endTx(true)}>
+              <GitCommitHorizontal /> Commit
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-destructive" disabled={ending || running} onClick={() => void endTx(false)}>
+              <Undo2 /> Rollback
+            </Button>
+          </>
+        )}
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           {running ? (
             <span className="flex items-center gap-1.5 text-primary tabular-nums">
@@ -186,7 +293,7 @@ export function QueryView({ tab }: { tab: Tab }) {
 
       <PanelGroup direction="vertical" className="min-h-0 flex-1">
         <Panel defaultSize={42} minSize={15}>
-          <EditorPane sql={sql} onChange={onChange} schema={schema} onRun={run} runRef={runRef} formatRef={formatRef} />
+          <EditorPane sql={sql} onChange={onChange} schema={schema} onRun={run} runRef={runRef} formatRef={formatRef} onSave={(asNew) => void saveQuery(asNew)} />
         </Panel>
         <PanelResizeHandle className="group relative h-px bg-border data-[resize-handle-state=drag]:bg-primary data-[resize-handle-state=hover]:bg-primary">
           <div className="absolute inset-x-0 -top-1 -bottom-1" />
@@ -240,7 +347,7 @@ export function QueryView({ tab }: { tab: Tab }) {
   );
 }
 
-function EditorPane({ sql, onChange, schema, onRun, runRef, formatRef }: { sql: string; onChange: (v: string) => void; schema?: Record<string, Column[]>; onRun: (s: string[]) => void; runRef: React.MutableRefObject<((all: boolean) => void) | null>; formatRef: React.MutableRefObject<(() => void) | null> }) {
+function EditorPane({ sql, onChange, schema, onRun, runRef, formatRef, onSave }: { sql: string; onChange: (v: string) => void; schema?: Record<string, Column[]>; onRun: (s: string[]) => void; runRef: React.MutableRefObject<((all: boolean) => void) | null>; formatRef: React.MutableRefObject<(() => void) | null>; onSave: (asNew: boolean) => void }) {
   return (
     <div className="h-full overflow-hidden">
       <SqlEditor
@@ -250,6 +357,7 @@ function EditorPane({ sql, onChange, schema, onRun, runRef, formatRef }: { sql: 
         autoFocus
         runRef={runRef}
         formatRef={formatRef}
+        onSave={onSave}
         placeholder={"-- Write SQL here.  Ctrl+Enter runs the statement under the cursor, Ctrl+Space shows suggestions.\nSELECT * FROM customers WHERE city = 'Tashkent' LIMIT 100;"}
         onRun={onRun}
       />

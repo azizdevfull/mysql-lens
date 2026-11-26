@@ -87,11 +87,16 @@ export interface SqlEditorProps {
   runRef?: React.MutableRefObject<((all: boolean) => void) | null>;
   /** Filled with a function that formats like Shift+Alt+F, for toolbar buttons. */
   formatRef?: React.MutableRefObject<(() => void) | null>;
+  /** Ctrl+S (asNew = Ctrl+Shift+S): save the text as a named query. */
+  onSave?: (asNew: boolean) => void;
   className?: string;
 }
 
-export function SqlEditor({ value, onChange, onRun, schema, defaultTable, placeholder, minimal, autoFocus, runRef, formatRef, className }: SqlEditorProps) {
+export function SqlEditor({ value, onChange, onRun, schema, defaultTable, placeholder, minimal, autoFocus, runRef, formatRef, onSave, className }: SqlEditorProps) {
   const cm = useRef<ReactCodeMirrorRef>(null);
+  // Read through a ref so a new callback does not rebuild the editor extensions.
+  const saveRef = useRef(onSave);
+  saveRef.current = onSave;
   const { extensions, run } = useMemo(() => {
     const cmSchema = schema ? Object.fromEntries(Object.entries(schema).map(([table, cols]) => [table, cols.map((c) => ({ label: c.name, type: 'property', detail: c.type, boost: c.pk ? 2 : 0 }))])) : undefined;
     const run = (all: boolean) => (view: EditorView) => {
@@ -124,6 +129,8 @@ export function SqlEditor({ value, onChange, onRun, schema, defaultTable, placeh
           { key: 'Mod-Enter', run: run(false) },
           { key: 'Shift-Mod-Enter', run: run(true) },
           { key: 'Shift-Alt-f', run: formatCommand },
+          { key: 'Mod-s', run: () => (saveRef.current ? (saveRef.current(false), true) : false) },
+          { key: 'Shift-Mod-s', run: () => (saveRef.current ? (saveRef.current(true), true) : false) },
         ]),
       ),
       EditorView.lineWrapping,

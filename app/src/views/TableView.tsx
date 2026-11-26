@@ -215,7 +215,8 @@ export function TableView({ tab }: { tab: Tab }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && changeCount) {
+      // Only the visible table tab reacts (hidden tabs stay mounted).
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && changeCount && useApp.getState().active === tab.id) {
         e.preventDefault();
         void openReview();
       }
