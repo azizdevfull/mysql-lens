@@ -128,6 +128,24 @@ npm test             # integration tests; needs a MySQL server (MSTUDIO_* env va
 npm run package      # builds the .vsix
 ```
 
+## Privacy
+
+MySQL Lens does not collect or send any data about you or your databases. It connects only to:
+
+- the MySQL/MariaDB servers and SSH hosts you configure;
+- GitHub (`github.com`), to check for and download new versions of the Windows app.
+
+Connections are stored on your computer (`%APPDATA%\uz.azizdev.mysqllens`). Passwords are kept in the Windows Credential Manager. Query history, saved queries and open tabs stay in the same local folder.
+
+## Code signing policy
+
+Windows releases are built from this repository by [GitHub Actions](.github/workflows/app.yml); nothing is built or uploaded by hand. Only the installer produced by that workflow from a release tag (`app-v*`) is signed.
+
+- Committers and reviewers: [Azizbek Isroilov](https://github.com/azizdevfull)
+- Approver of releases: [Azizbek Isroilov](https://github.com/azizdevfull)
+
+Release tags are pushed only by the approver. The updater checks every downloaded update against a separate signing key before installing it.
+
 ## License
 
 MIT
