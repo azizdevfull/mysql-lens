@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DataGrid } from '@/components/DataGrid';
 import { SqlEditor } from '@/components/SqlEditor';
 import { RowInspector } from '@/components/RowInspector';
+import { confirmRun } from '@/components/confirmRun';
+import { splitSql } from '@/lib/sqlsplit';
 
 interface Data {
   columns: Column[];
@@ -88,10 +90,12 @@ export function TableView({ tab }: { tab: Tab }) {
     if (!guard()) return;
     const simple = parseTableQuery(sql, db, table, state.pageSize);
     if (simple) return load(simple);
+    const statements = splitSql(sql).map((s) => s.sql);
+    if (!(await confirmRun(conn, statements))) return;
     setLoading(true);
     setError('');
     try {
-      const res = await backend.query(connId, db, sql);
+      const res = await backend.query(connId, db, statements);
       const err = res.find((r) => r.kind === 'error');
       if (err) throw new Error(err.error);
       const rows = [...res].reverse().find((r) => r.kind === 'rows');

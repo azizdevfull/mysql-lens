@@ -82,6 +82,12 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 - ✅ Explorer: jadval, view, routine va trigger uchun "Show DDL"; jadval uchun SELECT / INSERT / UPDATE / DELETE shablonlari.
 - ✅ Ulanishlar ro'yxatini export/import qilish (parollarsiz). Fayl formati VS Code kengaytmasi bilan bir xil.
 
+## Tayyor bo'lganlar (0.4.1)
+
+- ✅ Cancel haqiqatan ishlaydi: serverda `KILL QUERY`, qolgan statementlar bajarilmaydi.
+- ✅ Editor so'rovlarni bo'lingan holda yuboradi, shuning uchun procedure/trigger tanasi (`DELIMITER`) butun bajariladi.
+- ✅ Xavfsizlik: WHERE'siz UPDATE/DELETE, DROP, TRUNCATE tasdiq so'raydi. Qizil (production) ulanishda har qanday yozish tasdiq so'raydi, xavflilari uchun ulanish nomini yozish kerak; ish maydoni qizil ramkada.
+
 ---
 
 ## Keyinroq (g'oyalar)

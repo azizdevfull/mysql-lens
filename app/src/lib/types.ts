@@ -97,7 +97,13 @@ export interface Backend {
   columns(id: string, db: string, table: string): Promise<Column[]>;
   schema(id: string, db: string): Promise<Record<string, Column[]>>;
   tablePage(id: string, db: string, table: string, req: PageRequest): Promise<TablePage>;
-  query(id: string, db: string | undefined, sql: string): Promise<ResultSet[]>;
+  /**
+   * Runs SQL. A string is split into statements by the backend; an array is run
+   * statement by statement as given. With `runId`, `cancelQuery(runId)` stops it.
+   */
+  query(id: string, db: string | undefined, sql: string | string[], runId?: string): Promise<ResultSet[]>;
+  /** Kills the statement running for `runId` and skips the rest. False if it already finished. */
+  cancelQuery(runId: string): Promise<boolean>;
   previewChanges(id: string, db: string, table: string, columns: Column[], changes: RowChange[]): Promise<string[]>;
   applyChanges(id: string, db: string, table: string, columns: Column[], changes: RowChange[]): Promise<void>;
   /** Asks where to save and exports a table (sql empty) or a query. Returns rows written, or null if cancelled. */

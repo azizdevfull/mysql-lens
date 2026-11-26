@@ -63,6 +63,19 @@ impl HistoryEntry {
     }
 }
 
+/// One SQL text for a list of statements that splits back into the same list.
+/// Statements that contain `;` (procedure bodies) are wrapped in `DELIMITER ;;`.
+pub fn join_statements(statements: &[String]) -> String {
+    let list: Vec<&str> = statements.iter().map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+    if list.iter().any(|s| s.contains(';')) {
+        format!("DELIMITER ;;\n{};;\nDELIMITER ;", list.join(";;\n"))
+    } else if list.len() == 1 {
+        list[0].to_string()
+    } else {
+        format!("{};", list.join(";\n"))
+    }
+}
+
 pub struct HistoryStore {
     path: PathBuf,
     cap: usize,
@@ -161,6 +174,18 @@ mod tests {
         let p = std::env::temp_dir().join(format!("lens-history-{name}-{}.jsonl", uuid::Uuid::new_v4()));
         let _ = std::fs::remove_file(&p);
         p
+    }
+
+    #[test]
+    fn joined_statements_split_back() {
+        let one = vec!["SELECT 1".to_string()];
+        assert_eq!(join_statements(&one), "SELECT 1");
+        let two = vec!["SELECT 1".to_string(), " SELECT 2 ".to_string()];
+        assert_eq!(join_statements(&two), "SELECT 1;\nSELECT 2;");
+        let body = vec!["DROP PROCEDURE IF EXISTS p".to_string(), "CREATE PROCEDURE p() BEGIN SELECT 1; SELECT 2; END".to_string()];
+        let text = join_statements(&body);
+        let back: Vec<String> = crate::splitter::split_sql(&text).into_iter().map(|s| s.sql).collect();
+        assert_eq!(back, body);
     }
 
     #[test]

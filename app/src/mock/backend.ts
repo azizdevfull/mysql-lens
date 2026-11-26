@@ -141,6 +141,7 @@ function matcher(cols: Column[], where: string): (r: Cell[]) => boolean {
 }
 
 let history: HistoryEntry[] = [];
+const cancelled = new Set<string>();
 
 /** CREATE TABLE text for a fake table, shaped like MySQL's SHOW CREATE TABLE output. */
 function fakeDdl(table: string, columns: Column[]): string {
@@ -226,11 +227,26 @@ export const mockBackend: Backend = {
       ms: Math.round(performance.now() - started),
     };
   },
-  async query(id, name, sql) {
+  async query(id, name, input, runId) {
     const out: ResultSet[] = [];
-    for (const stmt of sql.split(/;\s*(?:\n|$)/).map((s) => s.trim()).filter(Boolean)) {
+    const sql = Array.isArray(input) ? input.join(';\n') : input;
+    const stmts = Array.isArray(input) ? input.map((s) => s.trim()).filter(Boolean) : sql.split(/;\s*(?:\n|$)/).map((s) => s.trim()).filter(Boolean);
+    for (const stmt of stmts) {
       const started = performance.now();
-      await delay();
+      // SELECT SLEEP(n) waits n seconds, so Cancel can be tried in the demo.
+      const sleep = /^select\s+sleep\((\d+(?:\.\d+)?)\)$/i.exec(stmt);
+      for (let t = 0; t < (sleep ? Number(sleep[1]) * 10 : 1); t++) {
+        if (runId && cancelled.has(runId)) break;
+        await delay(sleep ? 100 : undefined);
+      }
+      if (runId && cancelled.has(runId)) {
+        out.push({ kind: 'error', sql: stmt, columns: [], rows: [], totalRows: 0, error: 'Query cancelled.', ms: Math.round(performance.now() - started) });
+        break;
+      }
+      if (sleep) {
+        out.push({ kind: 'rows', sql: stmt, columns: [{ name: stmt.slice(7), type: 'bigint', numeric: true }], rows: [[0]], totalRows: 1, ms: Math.round(performance.now() - started) });
+        continue;
+      }
       try {
         const m = /^select\s+(.+?)\s+from\s+`?(\w+)`?(?:\s+(?:as\s+)?\w+)?(?:\s+where\s+(.+?))?(?:\s+order\s+by\s+`?(\w+)`?(?:\s+(asc|desc))?)?(?:\s+limit\s+(\d+))?\s*$/is.exec(stmt);
         const ddl = /^show\s+create\s+(table|view)\s+(?:`?\w+`?\.)?`?(\w+)`?$/i.exec(stmt);
@@ -263,6 +279,7 @@ export const mockBackend: Backend = {
         break;
       }
     }
+    if (runId) cancelled.delete(runId);
     const err = out.find((r) => r.kind === 'error');
     history.push({
       id: `h${Date.now()}${history.length}`,
@@ -277,6 +294,10 @@ export const mockBackend: Backend = {
       error: err?.error,
     });
     return out;
+  },
+  async cancelQuery(runId) {
+    cancelled.add(runId);
+    return true;
   },
   async historyList() {
     return [...history].reverse();

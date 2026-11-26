@@ -115,8 +115,12 @@ async fn table_page(s: State<'_, AppState>, id: String, db: String, table: Strin
 }
 
 #[tauri::command]
-async fn query(s: State<'_, AppState>, id: String, db: Option<String>, sql: String) -> R<Vec<ResultSet>> {
-    let res = s.engine.query(&id, db.as_deref(), &sql).await;
+async fn query(s: State<'_, AppState>, id: String, db: Option<String>, sql: String, statements: Option<Vec<String>>, run_id: Option<String>) -> R<Vec<ResultSet>> {
+    // The editor sends statements it already split (so procedure bodies stay whole) and a run id for Cancel.
+    let (res, sql) = match statements {
+        Some(list) => (s.engine.run_statements(&id, db.as_deref(), &list, run_id.as_deref()).await, lens_core::history::join_statements(&list)),
+        None => (s.engine.query(&id, db.as_deref(), &sql).await, sql),
+    };
     let name = s.engine.list_connections().into_iter().find(|c| c.id == id).map(|c| c.name).unwrap_or_default();
     let entry = match &res {
         Ok(results) => HistoryEntry::from_results(&id, &name, db.as_deref(), &sql, results),
@@ -125,6 +129,11 @@ async fn query(s: State<'_, AppState>, id: String, db: Option<String>, sql: Stri
     // History is a convenience: a failed write must not fail the query.
     let _ = s.history.add(entry);
     res
+}
+
+#[tauri::command]
+async fn cancel_query(s: State<'_, AppState>, run_id: String) -> R<bool> {
+    s.engine.cancel(&run_id).await
 }
 
 #[tauri::command]
@@ -257,6 +266,7 @@ pub fn run() {
             import_sql,
             import_preview,
             import_data,
+            cancel_query,
             history_list,
             history_delete,
             history_clear,

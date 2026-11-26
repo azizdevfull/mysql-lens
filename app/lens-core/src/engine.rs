@@ -27,9 +27,34 @@ pub struct Engine {
     store: ConnStore,
     secrets: Arc<dyn SecretStore>,
     sessions: Mutex<HashMap<String, Arc<Session>>>,
+    /// Queries in flight by run id: their connection and server thread id, and a stop flag.
+    running: std::sync::Mutex<HashMap<String, Running>>,
     /// Passwords typed at connect time for connections that do not save them.
     pub max_rows: usize,
 }
+
+struct Running {
+    conn_id: String,
+    thread_id: u32,
+    cancelled: Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// Removes a run from `Engine::running` when the query ends, however it ends.
+struct RunGuard<'a> {
+    running: &'a std::sync::Mutex<HashMap<String, Running>>,
+    run_id: Option<String>,
+}
+
+impl Drop for RunGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(id) = &self.run_id {
+            self.running.lock().unwrap().remove(id);
+        }
+    }
+}
+
+/// Error text shown for statements stopped by `Engine::cancel`.
+pub const CANCELLED: &str = "Query cancelled.";
 
 fn numeric_type(data_type: &str) -> bool {
     matches!(data_type.to_ascii_lowercase().as_str(), "tinyint" | "smallint" | "mediumint" | "int" | "integer" | "bigint" | "decimal" | "numeric" | "float" | "double" | "real" | "year")
@@ -88,7 +113,7 @@ fn u(row: &Row, i: usize) -> u64 {
 
 impl Engine {
     pub fn new(store: ConnStore, secrets: Arc<dyn SecretStore>) -> Self {
-        Self { store, secrets, sessions: Mutex::new(HashMap::new()), max_rows: 5000 }
+        Self { store, secrets, sessions: Mutex::new(HashMap::new()), running: std::sync::Mutex::new(HashMap::new()), max_rows: 5000 }
     }
 
     /* ----------------------------- connections ----------------------------- */
@@ -366,12 +391,35 @@ impl Engine {
     }
 
     /// Runs one or more statements. Stops at the first error.
+    /// Splits `sql` into statements and runs them in order on one connection.
     pub async fn query(&self, id: &str, db: Option<&str>, sql: &str) -> Result<Vec<ResultSet>> {
+        let statements: Vec<String> = split_sql(sql).into_iter().map(|s| s.sql).collect();
+        self.run_statements(id, db, &statements, None).await
+    }
+
+    /// Runs already split statements as they are (a procedure body keeps its `;`).
+    /// With a `run_id`, `cancel(run_id)` stops it. Stops at the first error.
+    pub async fn run_statements(&self, id: &str, db: Option<&str>, statements: &[String], run_id: Option<&str>) -> Result<Vec<ResultSet>> {
+        let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let _guard = RunGuard { running: &self.running, run_id: run_id.map(str::to_string) };
+        // Registered before connecting, so a cancel during a slow connect still stops the run.
+        if let Some(rid) = run_id {
+            self.running.lock().unwrap().insert(rid.to_string(), Running { conn_id: id.to_string(), thread_id: 0, cancelled: cancelled.clone() });
+        }
         let mut conn = self.conn(id, db).await?;
+        if let Some(rid) = run_id {
+            if let Some(r) = self.running.lock().unwrap().get_mut(rid) {
+                r.thread_id = conn.id();
+            }
+        }
         let mut out = Vec::new();
-        for st in split_sql(sql) {
+        for st in statements.iter().map(|s| s.trim()).filter(|s| !s.is_empty()) {
             let started = Instant::now();
-            match self.run_one(&mut conn, &st.sql).await {
+            if cancelled.load(std::sync::atomic::Ordering::SeqCst) {
+                out.push(ResultSet { kind: "error".into(), sql: st.to_string(), columns: vec![], rows: vec![], total_rows: 0, affected_rows: None, error: Some(CANCELLED.into()), ms: 0 });
+                break;
+            }
+            match self.run_one(&mut conn, st).await {
                 Ok(mut sets) => {
                     let ms = started.elapsed().as_millis() as u64;
                     for r in sets.iter_mut() {
@@ -380,12 +428,34 @@ impl Engine {
                     out.extend(sets);
                 }
                 Err(e) => {
-                    out.push(ResultSet { kind: "error".into(), sql: st.sql, columns: vec![], rows: vec![], total_rows: 0, affected_rows: None, error: Some(e.to_string()), ms: started.elapsed().as_millis() as u64 });
+                    let error = if cancelled.load(std::sync::atomic::Ordering::SeqCst) { CANCELLED.to_string() } else { e.to_string() };
+                    out.push(ResultSet { kind: "error".into(), sql: st.to_string(), columns: vec![], rows: vec![], total_rows: 0, affected_rows: None, error: Some(error), ms: started.elapsed().as_millis() as u64 });
                     break;
                 }
             }
         }
         Ok(out)
+    }
+
+    /// Stops the run started with `run_id`: the statement executing on the server
+    /// is killed (`KILL QUERY` from a second connection) and no further statements run.
+    /// Returns false when that run already finished.
+    pub async fn cancel(&self, run_id: &str) -> Result<bool> {
+        let target = self.running.lock().unwrap().get(run_id).map(|r| {
+            r.cancelled.store(true, std::sync::atomic::Ordering::SeqCst);
+            (r.conn_id.clone(), r.thread_id)
+        });
+        let Some((conn_id, thread_id)) = target else { return Ok(false) };
+        if thread_id == 0 {
+            return Ok(true); // still connecting: the flag stops it before the first statement
+        }
+        let mut killer = self.conn(&conn_id, None).await?;
+        match killer.query_drop(format!("KILL QUERY {thread_id}")).await {
+            Ok(()) => Ok(true),
+            // 1094 Unknown thread id: the statement ended between lookup and kill.
+            Err(mysql_async::Error::Server(e)) if e.code == 1094 => Ok(true),
+            Err(e) => Err(e.into()),
+        }
     }
 
     async fn run_one(&self, conn: &mut Conn, sql: &str) -> Result<Vec<ResultSet>> {

@@ -46,8 +46,9 @@ async function showDdl(connId: string, db: string, kind: DdlKind, name: string) 
     const ddl = ddlFromResult(res);
     // Routine bodies are hidden from users without enough privileges.
     if (!ddl) return void toast.error(`Could not read the DDL of ${name}`, { description: 'The server returned no definition. You may lack the privileges to see it.' });
-    const end = kind === 'TABLE' || kind === 'VIEW' ? ';' : '';
-    useApp.getState().openQuery(connId, db, `-- ${kind.toLowerCase()} ${db}.${name}\n${ddl}${end}\n`);
+    // Routine and trigger bodies contain `;`, so they are wrapped in DELIMITER to run as one statement.
+    const body = kind === 'TABLE' || kind === 'VIEW' ? `${ddl};` : `DELIMITER ;;\n${ddl};;\nDELIMITER ;`;
+    useApp.getState().openQuery(connId, db, `-- ${kind.toLowerCase()} ${db}.${name}\n${body}\n`);
   } catch (e) {
     toast.error(`Could not read the DDL of ${name}`, { description: String(e) });
   }

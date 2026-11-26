@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { DataGrid } from '@/components/DataGrid';
 import { ExportMenu } from '@/components/ExportMenu';
 import { SqlEditor } from '@/components/SqlEditor';
+import { confirmRun } from '@/components/confirmRun';
 
 /** Current editor text of each query tab (for duplicating tabs). */
 export const liveSql = new Map<string, string>();
@@ -32,6 +33,9 @@ export function QueryView({ tab }: { tab: Tab }) {
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const runRef = useRef<((all: boolean) => void) | null>(null);
+  /** Id of the run in flight, for Cancel. */
+  const runId = useRef<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (!tab.connId) return;
@@ -47,11 +51,15 @@ export function QueryView({ tab }: { tab: Tab }) {
   const run = useCallback(
     async (statements: string[]) => {
       if (!tab.connId || !statements.length || running) return;
+      if (!(await confirmRun(conn, statements))) return;
       setRunning(true);
+      const id = `${tab.id}-${Date.now().toString(36)}`;
+      runId.current = id;
       const started = performance.now();
       const timer = setInterval(() => setElapsed(Math.round(performance.now() - started)), 100);
       try {
-        const res = await backend.query(tab.connId, tab.db, statements.join(';\n'));
+        // Sent already split, so a procedure body with `;` inside stays one statement.
+        const res = await backend.query(tab.connId, tab.db, statements, id);
         setResults(res);
         const firstRows = res.findIndex((r) => r.kind === 'rows');
         setActive(res.some((r) => r.kind === 'error') || firstRows < 0 ? 'messages' : firstRows);
@@ -60,11 +68,25 @@ export function QueryView({ tab }: { tab: Tab }) {
       } finally {
         clearInterval(timer);
         setElapsed(Math.round(performance.now() - started));
+        runId.current = null;
+        setCancelling(false);
         setRunning(false);
       }
     },
-    [tab.connId, tab.db, running],
+    [tab.connId, tab.db, tab.id, running, conn],
   );
+
+  const cancel = async () => {
+    const id = runId.current;
+    if (!id || cancelling) return;
+    setCancelling(true);
+    try {
+      await backend.cancelQuery(id);
+    } catch (e) {
+      setCancelling(false);
+      toast.error('Could not cancel the query', { description: String(e) });
+    }
+  };
 
   const onChange = (v: string) => {
     setSql(v);
@@ -132,8 +154,8 @@ export function QueryView({ tab }: { tab: Tab }) {
           </Button>
         </Tooltip>
         {running && (
-          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => toast('Query cancelled')}>
-            <Square className="fill-current" /> Cancel
+          <Button size="sm" variant="ghost" className="text-destructive" disabled={cancelling} onClick={() => void cancel()}>
+            {cancelling ? <Loader2 className="animate-spin" /> : <Square className="fill-current" />} {cancelling ? 'Cancelling…' : 'Cancel'}
           </Button>
         )}
         <Tooltip content="Query history" shortcut="Ctrl+H">

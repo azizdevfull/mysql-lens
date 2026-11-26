@@ -20,6 +20,7 @@ import { QueryView, colorOf, liveSql } from '@/views/QueryView';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/menu';
 import releaseNotes from '../release-notes.md?raw';
 import { Welcome } from '@/views/Welcome';
+import { isProduction } from '@/lib/sqlSafety';
 
 function TabBar() {
   const tabs = useApp((s) => s.tabs);
@@ -141,6 +142,7 @@ function StatusBar() {
           {conn.name}
           {tab?.db && <span className="opacity-70">/ {tab.db}</span>}
           {conn.readOnly && <span className="rounded bg-warning/15 px-1 text-warning">read-only</span>}
+          {isProduction(conn) && <span className="rounded bg-destructive/15 px-1 font-medium text-destructive">production</span>}
         </span>
       ) : (
         <span>No connection</span>
@@ -160,6 +162,8 @@ export default function App() {
   const active = useApp((s) => s.active);
   const theme = useApp((s) => s.theme);
   const { load, setPalette, openQuery, closeTab } = useApp.getState();
+  // A red frame around the work area while a production (red-tagged) connection is in use.
+  const prod = useApp((s) => isProduction(s.connections.find((c) => c.id === s.tabs.find((t) => t.id === s.active)?.connId)));
 
   useEffect(() => {
     void load();
@@ -200,7 +204,7 @@ export default function App() {
           <Panel minSize={40}>
             <div className="flex h-full min-w-0 flex-col">
               <TabBar />
-              <div className="relative min-h-0 flex-1">
+              <div className={cn('relative min-h-0 flex-1', prod && 'after:pointer-events-none after:absolute after:inset-0 after:z-10 after:ring-2 after:ring-destructive/70 after:ring-inset')}>
                 {tabs.map((t) => (
                   <div key={t.id} className={cn('absolute inset-0', t.id !== active && 'invisible')}>
                     {t.kind === 'welcome' ? <Welcome /> : t.kind === 'table' ? <TableView tab={t} /> : <QueryView tab={t} />}

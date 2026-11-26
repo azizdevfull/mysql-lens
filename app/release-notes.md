@@ -1,3 +1,3 @@
-- Query history (Ctrl+H): every query you run is saved with its connection, database, time and duration. Search it and open any query in a new tab
-- Explorer: "Show DDL" for tables, views, routines and triggers, and "Generate SQL" for SELECT, INSERT, UPDATE and DELETE templates
-- Export and import the connection list (passwords are never exported). Files are compatible with the MySQL Lens VS Code extension
+- Cancel now really stops a running query: the statement is killed on the server and the rest are skipped
+- Stored procedures, functions and triggers run as one statement (DELIMITER is respected), including DDL opened with "Show DDL"
+- Safety: UPDATE/DELETE without WHERE, DROP and TRUNCATE ask before running. On a red-tagged (production) connection every write asks, risky ones need the connection name typed, and the work area gets a red frame

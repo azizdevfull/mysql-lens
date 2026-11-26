@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 interface AskOptions {
   title: string;
   description?: string;
+  /** Monospace block under the description, e.g. the SQL about to run. */
+  detail?: string;
   confirm: string;
   danger?: boolean;
   /** Ask for text; `mustEqual` requires typing an exact value (e.g. a database name). */
@@ -49,6 +51,7 @@ export function AskDialog() {
             {opts?.description && <DialogDescription className="text-[13px] leading-relaxed">{opts.description}</DialogDescription>}
           </div>
         </DialogHeader>
+        {opts?.detail && <pre className="mx-5 max-h-48 overflow-auto rounded-md border bg-muted/40 px-3 py-2 font-mono text-[11.5px] whitespace-pre-wrap break-all">{opts.detail}</pre>}
         {opts?.input && (
           <div className="px-5">
             <Input

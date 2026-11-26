@@ -27,7 +27,9 @@ export const tauriBackend: Backend = {
   columns: (id, db, table) => invoke('columns', { id, db, table }),
   schema: (id, db) => invoke('schema', { id, db }),
   tablePage: (id, db, table, req) => invoke('table_page', { id, db, table, req }),
-  query: (id, db, sql) => invoke('query', { id, db: db ?? null, sql }),
+  query: (id, db, sql, runId) =>
+    Array.isArray(sql) ? invoke('query', { id, db: db ?? null, sql: '', statements: sql, runId: runId ?? null }) : invoke('query', { id, db: db ?? null, sql, runId: runId ?? null }),
+  cancelQuery: (runId) => invoke('cancel_query', { runId }),
   previewChanges: (_id, db, table, columns, changes) => invoke('preview_changes', { db, table, columns, changes }),
   applyChanges: (id, db, table, columns, changes) => invoke('apply_changes', { id, db, table, columns, changes }),
   async exportData(id, db, table, sql, format) {
