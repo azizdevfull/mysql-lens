@@ -4,23 +4,51 @@ A MySQL and MariaDB client for VS Code with **unlimited connections**, SSH tunne
 
 ![Table editor with SQL autocomplete](media/screenshots/autocomplete.png)
 
-## Windows desktop app
+## Installation
 
-Besides the VS Code extension, MySQL Lens is a standalone Windows app. Install or update it with one command; no administrator rights are needed.
+MySQL Lens comes in two forms: a standalone **Windows app** and a **VS Code extension**.
 
-PowerShell:
+### Windows app
+
+Requires 64-bit Windows 10 or 11. The installer is per-user, so no administrator rights are needed.
+
+**One command (recommended).** In PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/azizdevfull/mysql-lens/main/install.ps1 | iex
 ```
 
-cmd:
+Or in cmd:
 
 ```bat
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/azizdevfull/mysql-lens/main/install.ps1 | iex"
 ```
 
-To install a specific version, set `$env:MYSQL_LENS_VERSION = '0.6.0'` first. The installer can also be downloaded from [Releases](https://github.com/azizdevfull/mysql-lens/releases/latest). Once installed, the app updates itself.
+The script downloads the latest installer from [GitHub Releases](https://github.com/azizdevfull/mysql-lens/releases/latest), installs it silently and removes the downloaded file. Close MySQL Lens before running it.
+
+**A specific version:**
+
+```powershell
+$env:MYSQL_LENS_VERSION = '0.6.0'; irm https://raw.githubusercontent.com/azizdevfull/mysql-lens/main/install.ps1 | iex
+```
+
+**Manual install.** Download `MySQL-Lens_<version>_x64-setup.exe` from [Releases](https://github.com/azizdevfull/mysql-lens/releases/latest) and run it. The app is not code-signed yet, so Windows SmartScreen may show a warning: click **More info → Run anyway**.
+
+**Updates.** The app checks for new versions on startup and installs them with one click. Running the install command again also updates to the latest version.
+
+**Uninstall.** Settings → Apps → Installed apps → MySQL Lens → Uninstall.
+
+### VS Code extension
+
+Build the extension and install the `.vsix` file:
+
+```bash
+npm install
+npm run package
+code --install-extension mysql-lens-*.vsix
+```
+
+Or in VS Code: Extensions view → `…` menu → **Install from VSIX…**.
 
 ## Features
 
