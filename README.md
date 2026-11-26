@@ -139,12 +139,17 @@ Connections are stored on your computer (`%APPDATA%\uz.azizdev.mysqllens`). Pass
 
 ## Code signing policy
 
-Windows releases are built from this repository by [GitHub Actions](.github/workflows/app.yml); nothing is built or uploaded by hand. Only the installer produced by that workflow from a release tag (`app-v*`) is signed.
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
-- Committers and reviewers: [Azizbek Isroilov](https://github.com/azizdevfull)
-- Approver of releases: [Azizbek Isroilov](https://github.com/azizdevfull)
+Windows releases are built from this repository by [GitHub Actions](.github/workflows/app.yml); nothing is built or uploaded by hand. Only the installer produced by that workflow from a release tag (`app-v*`) is signed, and every signing request is approved by hand.
 
-Release tags are pushed only by the approver. The updater checks every downloaded update against a separate signing key before installing it.
+Team roles:
+
+- Authors (committers): [Azizbek Isroilov](https://github.com/azizdevfull)
+- Reviewers: [Azizbek Isroilov](https://github.com/azizdevfull) (changes from other contributors are reviewed before they are merged)
+- Approvers: [Azizbek Isroilov](https://github.com/azizdevfull)
+
+Privacy policy: see [Privacy](#privacy). The only connection the app makes on its own is the update check to GitHub; it sends no data about you or your databases.
 
 ## License
 
