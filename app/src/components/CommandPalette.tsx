@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Database, Download, Eye, FilePlus2, Moon, Plus, RefreshCw, Server, Sun, Table2 } from 'lucide-react';
+import { Database, Download, Eye, FileDown, FilePlus2, FileUp, History, Moon, Plus, RefreshCw, Server, Sun, Table2 } from 'lucide-react';
+import { openHistory } from '@/components/HistoryDialog';
+import { exportConnections, importConnections } from '@/components/Explorer';
 import { checkForUpdates } from '@/lib/updater';
 import { backend } from '@/lib/backend';
 import { useApp } from '@/lib/store';
@@ -69,8 +71,17 @@ export function CommandPalette() {
               <CommandItem onSelect={() => run(() => openQuery())}>
                 <FilePlus2 /> New query <CommandShortcut>Ctrl N</CommandShortcut>
               </CommandItem>
+              <CommandItem onSelect={() => run(openHistory)}>
+                <History /> Query history <CommandShortcut>Ctrl H</CommandShortcut>
+              </CommandItem>
               <CommandItem onSelect={() => run(() => openConnDialog())}>
                 <Plus /> New connection
+              </CommandItem>
+              <CommandItem onSelect={() => run(() => void importConnections())}>
+                <FileUp /> Import connections…
+              </CommandItem>
+              <CommandItem onSelect={() => run(() => void exportConnections())}>
+                <FileDown /> Export connections…
               </CommandItem>
               <CommandItem onSelect={() => run(toggleTheme)}>
                 {theme === 'dark' ? <Sun /> : <Moon />} Switch to {theme === 'dark' ? 'light' : 'dark'} theme

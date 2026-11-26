@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  AlertCircle, ChevronRight, Copy, Database, Download, Eye, FilePlus2, FileSpreadsheet, FileCode2, FolderClosed, FunctionSquare, Loader2, Lock, Pencil, Plug, PlugZap, Plus, RefreshCw, Search, Server, Table2, Trash2, Upload, Workflow, Zap,
+  AlertCircle, ChevronRight, Code2, Copy, Database, Download, Eye, FilePlus2, FileSpreadsheet, FileCode2, FileDown, FileUp, FolderClosed, FunctionSquare, Loader2, Lock, MoreHorizontal, Pencil, Plug, PlugZap, Plus, RefreshCw, ScrollText, Search, Server, Table2, Trash2, Upload, Workflow, Zap,
 } from 'lucide-react';
 import { backend } from '@/lib/backend';
 import { useApp } from '@/lib/store';
@@ -9,7 +9,11 @@ import type { Connection, DbObjects } from '@/lib/types';
 import { cn, formatCount } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/misc';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/menu';
+import {
+  ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/menu';
+import { ddlFromResult, qid, sqlTemplate, type TemplateKind } from '@/lib/sqlgen';
 import { colorOf } from '@/views/QueryView';
 import { ask } from '@/components/AskDialog';
 import { openDumpDialog } from '@/components/DumpDialog';
@@ -31,7 +35,76 @@ async function runSqlFile(connId: string, db: string | undefined, where: string)
   }
 }
 
-const qid = (s: string) => '`' + s.replace(/`/g, '``') + '`';
+type DdlKind = 'TABLE' | 'VIEW' | 'PROCEDURE' | 'FUNCTION' | 'TRIGGER';
+
+/** Opens the CREATE statement of an object in a new query tab. */
+async function showDdl(connId: string, db: string, kind: DdlKind, name: string) {
+  try {
+    const res = await backend.query(connId, db, `SHOW CREATE ${kind} ${qid(db)}.${qid(name)}`);
+    const err = res.find((r) => r.kind === 'error');
+    if (err) return void toast.error(`Could not read the DDL of ${name}`, { description: err.error });
+    const ddl = ddlFromResult(res);
+    // Routine bodies are hidden from users without enough privileges.
+    if (!ddl) return void toast.error(`Could not read the DDL of ${name}`, { description: 'The server returned no definition. You may lack the privileges to see it.' });
+    const end = kind === 'TABLE' || kind === 'VIEW' ? ';' : '';
+    useApp.getState().openQuery(connId, db, `-- ${kind.toLowerCase()} ${db}.${name}\n${ddl}${end}\n`);
+  } catch (e) {
+    toast.error(`Could not read the DDL of ${name}`, { description: String(e) });
+  }
+}
+
+/** Opens a SELECT / INSERT / UPDATE / DELETE template for a table in a new query tab. */
+async function openTemplate(connId: string, db: string, table: string, kind: TemplateKind) {
+  try {
+    const cols = await backend.columns(connId, db, table);
+    useApp.getState().openQuery(connId, db, sqlTemplate(kind, table, cols));
+  } catch (e) {
+    toast.error(`Could not read the columns of ${table}`, { description: String(e) });
+  }
+}
+
+/** Saves the connection list (without passwords) to a JSON file. */
+export async function exportConnections() {
+  if (!useApp.getState().connections.length) return void toast('No connections to export');
+  try {
+    const r = await backend.exportConnections();
+    if (r) toast.success(`Exported ${r.count} connection(s)`, { description: 'Passwords were not included.', action: backend.native ? { label: 'Show file', onClick: () => void backend.revealFile(r.path) } : undefined });
+  } catch (e) {
+    toast.error('Export failed', { description: String(e) });
+  }
+}
+
+/** Adds connections from a file made by exportConnections (or by the VS Code extension). */
+export async function importConnections() {
+  try {
+    const r = await backend.importConnections();
+    if (!r) return;
+    await useApp.getState().load();
+    if (!r.added) return void toast(r.skipped ? `All ${r.skipped} connection(s) are already in the list` : 'No connections found in that file');
+    toast.success(`Imported ${r.added} connection(s)`, { description: `${r.skipped ? `${r.skipped} already in the list were skipped. ` : ''}Edit each one to enter its password.` });
+  } catch (e) {
+    toast.error('Import failed', { description: String(e) });
+  }
+}
+
+/** "Generate SQL" submenu for a table or view. */
+function GenerateMenu({ connId, db, table, readOnly }: { connId: string; db: string; table: string; readOnly?: boolean }) {
+  const kinds: [TemplateKind, string][] = readOnly ? [['select', 'SELECT']] : [['select', 'SELECT'], ['insert', 'INSERT'], ['update', 'UPDATE'], ['delete', 'DELETE']];
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>
+        <Code2 /> Generate SQL
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent className="min-w-36">
+        {kinds.map(([k, label]) => (
+          <ContextMenuItem key={k} onSelect={() => void openTemplate(connId, db, table, k)}>
+            {label}
+          </ContextMenuItem>
+        ))}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
 
 /** Runs one statement and reports errors as a toast. Returns true on success. */
 async function exec(connId: string, db: string | undefined, sql: string, done: string): Promise<boolean> {
@@ -243,13 +316,13 @@ function DatabaseNode({ connId, db, filter, defaultOpen }: { connId: string; db:
                   )),
                 )}
                 {group('views', 'Views', views.length, <FolderClosed className="text-muted-foreground" />, views.map((v) => (
-                  <Row key={v.name} depth={3} icon={<Eye className="text-sky-500" />} label={v.name} onClick={() => openTable(connId, db, v.name, true)} active={activeTab?.table === v.name} />
+                  <ViewNode key={v.name} connId={connId} db={db} name={v.name} active={activeTab?.table === v.name && activeTab.db === db} onOpen={() => openTable(connId, db, v.name, true)} />
                 )))}
                 {group('routines', 'Routines', routines.length, <Workflow className="text-muted-foreground" />, routines.map((r) => (
-                  <Row key={r.name} depth={3} icon={r.kind === 'function' ? <FunctionSquare className="text-violet-500" /> : <FileCode2 className="text-violet-500" />} label={r.name} meta={r.kind} onClick={() => openQuery(connId, db, `-- ${r.kind} ${r.name}\nSHOW CREATE ${r.kind.toUpperCase()} ${r.name};`)} />
+                  <Row key={r.name} depth={3} icon={r.kind === 'function' ? <FunctionSquare className="text-violet-500" /> : <FileCode2 className="text-violet-500" />} label={r.name} meta={r.kind} onClick={() => void showDdl(connId, db, r.kind === 'function' ? 'FUNCTION' : 'PROCEDURE', r.name)} />
                 )))}
                 {group('triggers', 'Triggers', objs.triggers.length, <Zap className="text-muted-foreground" />, objs.triggers.map((t) => (
-                  <Row key={t} depth={3} icon={<Zap className="text-amber-500" />} label={t} />
+                  <Row key={t} depth={3} icon={<Zap className="text-amber-500" />} label={t} onClick={() => void showDdl(connId, db, 'TRIGGER', t)} />
                 )))}
               </>
             )}
@@ -291,8 +364,32 @@ function DatabaseNode({ connId, db, filter, defaultOpen }: { connId: string; db:
   );
 }
 
+function ViewNode({ connId, db, name, active, onOpen }: { connId: string; db: string; name: string; active: boolean; onOpen: () => void }) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div>
+          <Row depth={3} icon={<Eye className="text-sky-500" />} label={name} onClick={onOpen} active={active} />
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={onOpen}>
+          <Eye /> Open data
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void showDdl(connId, db, 'VIEW', name)}>
+          <ScrollText /> Show DDL
+        </ContextMenuItem>
+        <GenerateMenu connId={connId} db={db} table={name} readOnly />
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => void navigator.clipboard.writeText(name)}>
+          <Copy /> Copy name
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
 function TableNode({ connId, db, name, rows, active, onOpen }: { connId: string; db: string; name: string; rows: number; active: boolean; onOpen: () => void }) {
-  const { openQuery } = useApp.getState();
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -304,9 +401,10 @@ function TableNode({ connId, db, name, rows, active, onOpen }: { connId: string;
         <ContextMenuItem onSelect={onOpen}>
           <Table2 /> Open data
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => openQuery(connId, db, `SELECT *\n  FROM ${name}\n WHERE 1 = 1\n LIMIT 100;`)}>
-          <FileCode2 /> New query on {name}
+        <ContextMenuItem onSelect={() => void showDdl(connId, db, 'TABLE', name)}>
+          <ScrollText /> Show DDL
         </ContextMenuItem>
+        <GenerateMenu connId={connId} db={db} table={name} />
         <ContextMenuItem onSelect={() => openImportWizard(connId, db, name)}>
           <FileSpreadsheet /> Import CSV, Excel, JSON…
         </ContextMenuItem>
@@ -355,6 +453,23 @@ export function Explorer() {
               <RefreshCw />
             </Button>
           </Tooltip>
+          <DropdownMenu>
+            <Tooltip content="More">
+              <DropdownMenuTrigger asChild>
+                <Button size="icon-xs" variant="ghost">
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => void importConnections()}>
+                <FileUp /> Import connections…
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!connections.length} onSelect={() => void exportConnections()}>
+                <FileDown /> Export connections…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       <div className="px-2 pb-2">

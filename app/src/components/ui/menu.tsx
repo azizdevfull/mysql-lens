@@ -1,6 +1,7 @@
 import * as React from 'react';
 import * as DropdownPrimitive from '@radix-ui/react-dropdown-menu';
 import * as ContextPrimitive from '@radix-ui/react-context-menu';
+import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const content =
@@ -51,4 +52,20 @@ export function ContextMenuItem({ className, variant, shortcut, children, ...pro
 }
 export function ContextMenuSeparator() {
   return <ContextPrimitive.Separator className="-mx-1 my-1 h-px bg-border" />;
+}
+export const ContextMenuSub = ContextPrimitive.Sub;
+export function ContextMenuSubTrigger({ className, children, ...props }: React.ComponentProps<typeof ContextPrimitive.SubTrigger>) {
+  return (
+    <ContextPrimitive.SubTrigger className={cn(item, 'data-[state=open]:bg-accent', className)} {...props}>
+      {children}
+      <ChevronRight className="ml-auto" />
+    </ContextPrimitive.SubTrigger>
+  );
+}
+export function ContextMenuSubContent({ className, ...props }: React.ComponentProps<typeof ContextPrimitive.SubContent>) {
+  return (
+    <ContextPrimitive.Portal>
+      <ContextPrimitive.SubContent className={cn(content, className)} {...props} />
+    </ContextPrimitive.Portal>
+  );
 }

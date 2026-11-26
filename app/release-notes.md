@@ -1,2 +1,3 @@
-- Tab menu: right-click a tab to close others, close to the right, close all or duplicate a query
-- After an update, the app tells you which version you are on and what changed
+- Query history (Ctrl+H): every query you run is saved with its connection, database, time and duration. Search it and open any query in a new tab
+- Explorer: "Show DDL" for tables, views, routines and triggers, and "Generate SQL" for SELECT, INSERT, UPDATE and DELETE templates
+- Export and import the connection list (passwords are never exported). Files are compatible with the MySQL Lens VS Code extension

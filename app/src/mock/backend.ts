@@ -1,4 +1,4 @@
-import type { Backend, Cell, Column, Connection, DbObjects, ResultSet, RowChange, TableMeta } from '@/lib/types';
+import type { Backend, Cell, Column, Connection, DbObjects, HistoryEntry, ResultSet, RowChange, TableMeta } from '@/lib/types';
 
 /* An in-memory fake server so the UI can be designed and tested without MySQL. */
 
@@ -140,6 +140,19 @@ function matcher(cols: Column[], where: string): (r: Cell[]) => boolean {
   return (r) => tests.every((t) => t(r));
 }
 
+let history: HistoryEntry[] = [];
+
+/** CREATE TABLE text for a fake table, shaped like MySQL's SHOW CREATE TABLE output. */
+function fakeDdl(table: string, columns: Column[]): string {
+  const lines = columns.map(
+    (c) =>
+      `  \`${c.name}\` ${c.type}${c.nullable ? '' : ' NOT NULL'}${c.autoIncrement ? ' AUTO_INCREMENT' : c.defaultValue != null ? ` DEFAULT ${c.defaultValue === 'CURRENT_TIMESTAMP' ? c.defaultValue : `'${c.defaultValue}'`}` : c.nullable ? ' DEFAULT NULL' : ''}`,
+  );
+  const pk = columns.filter((c) => c.pk).map((c) => `\`${c.name}\``);
+  if (pk.length) lines.push(`  PRIMARY KEY (${pk.join(',')})`);
+  return `CREATE TABLE \`${table}\` (\n${lines.join(',\n')}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
+}
+
 export const mockBackend: Backend = {
   native: false,
   async listConnections() {
@@ -220,6 +233,14 @@ export const mockBackend: Backend = {
       await delay();
       try {
         const m = /^select\s+(.+?)\s+from\s+`?(\w+)`?(?:\s+(?:as\s+)?\w+)?(?:\s+where\s+(.+?))?(?:\s+order\s+by\s+`?(\w+)`?(?:\s+(asc|desc))?)?(?:\s+limit\s+(\d+))?\s*$/is.exec(stmt);
+        const ddl = /^show\s+create\s+(table|view)\s+(?:`?\w+`?\.)?`?(\w+)`?$/i.exec(stmt);
+        if (ddl) {
+          const t = db(id, name ?? 'shop_db')[ddl[2]];
+          if (!t) throw new Error(`ER_NO_SUCH_TABLE: Table '${name}.${ddl[2]}' doesn't exist`);
+          const kind = ddl[1].toLowerCase() === 'view' ? 'View' : 'Table';
+          out.push({ kind: 'rows', sql: stmt, columns: [{ name: kind, type: 'varchar' }, { name: `Create ${kind}`, type: 'text' }], rows: [[ddl[2], fakeDdl(ddl[2], t.columns)]], totalRows: 1, ms: Math.round(performance.now() - started) });
+          continue;
+        }
         if (/^(update|delete|insert)/i.test(stmt)) {
           out.push({ kind: 'ok', sql: stmt, columns: [], rows: [], totalRows: 0, affectedRows: Math.floor(rnd() * 5) + 1, ms: Math.round(performance.now() - started) });
           continue;
@@ -242,7 +263,37 @@ export const mockBackend: Backend = {
         break;
       }
     }
+    const err = out.find((r) => r.kind === 'error');
+    history.push({
+      id: `h${Date.now()}${history.length}`,
+      ts: Date.now(),
+      connId: id,
+      connName: connections.find((c) => c.id === id)?.name ?? '',
+      db: name || undefined,
+      sql: sql.trim(),
+      ms: out.reduce((a, r) => a + r.ms, 0),
+      rows: out.reduce((a, r) => a + (r.kind === 'rows' ? r.totalRows : 0), 0),
+      affected: out.reduce((a, r) => a + (r.affectedRows ?? 0), 0),
+      error: err?.error,
+    });
     return out;
+  },
+  async historyList() {
+    return [...history].reverse();
+  },
+  async historyDelete(hid) {
+    history = history.filter((h) => h.id !== hid);
+  },
+  async historyClear() {
+    history = [];
+  },
+  async exportConnections() {
+    await delay(200);
+    return { count: connections.length, path: 'C:\\Users\\you\\Downloads\\mysql-connections.json' };
+  },
+  async importConnections() {
+    await delay(200);
+    return { added: 0, skipped: connections.length };
   },
   async previewChanges(_id, name, table, columns, changes) {
     const t = `\`${name}\`.\`${table}\``;

@@ -66,6 +66,20 @@ export const tauriBackend: Backend = {
       off();
     }
   },
+  historyList: () => invoke('history_list'),
+  historyDelete: (id) => invoke('history_delete', { id }),
+  historyClear: () => invoke('history_clear'),
+  async exportConnections() {
+    const path = await save({ defaultPath: 'mysql-connections.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
+    if (!path) return null;
+    const count = await invoke<number>('export_connections', { path });
+    return { count, path };
+  },
+  async importConnections() {
+    const path = await open({ multiple: false, filters: [{ name: 'JSON', extensions: ['json'] }] });
+    if (!path || Array.isArray(path)) return null;
+    return invoke<{ added: number; skipped: number }>('import_connections', { path });
+  },
   async importSql(id, db, continueOnError, onProgress) {
     const file = await open({ multiple: false, filters: [{ name: 'SQL files', extensions: ['sql', 'gz'] }] });
     if (!file || Array.isArray(file)) return null;

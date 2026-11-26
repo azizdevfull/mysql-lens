@@ -14,6 +14,7 @@ import { CommandPalette } from '@/components/CommandPalette';
 import { AskDialog } from '@/components/AskDialog';
 import { DumpDialog } from '@/components/DumpDialog';
 import { ImportWizard } from '@/components/ImportWizard';
+import { HistoryDialog, openHistory } from '@/components/HistoryDialog';
 import { TableView } from '@/views/TableView';
 import { QueryView, colorOf, liveSql } from '@/views/QueryView';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/menu';
@@ -172,6 +173,9 @@ export default function App() {
         e.preventDefault();
         const t = useApp.getState().tabs.find((x) => x.id === useApp.getState().active);
         openQuery(t?.connId, t?.db);
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        openHistory();
       } else if (mod && e.key.toLowerCase() === 'w') {
         e.preventDefault();
         closeTab(useApp.getState().active);
@@ -213,6 +217,7 @@ export default function App() {
       <AskDialog />
       <DumpDialog />
       <ImportWizard />
+      <HistoryDialog />
       <Toaster theme={theme} position="bottom-right" richColors closeButton toastOptions={{ className: 'font-sans' }} />
     </TooltipProvider>
   );

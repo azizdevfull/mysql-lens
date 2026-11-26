@@ -110,6 +110,28 @@ export interface Backend {
   pickDataFile(): Promise<string | null>;
   importPreview(path: string, opts?: SourceOptions): Promise<ImportPreview>;
   importData(id: string, db: string, path: string, opts: SourceOptions, plan: ImportPlan, onProgress: (rows: number) => void): Promise<number>;
+  /** Executed queries, newest first. */
+  historyList(): Promise<HistoryEntry[]>;
+  historyDelete(id: string): Promise<void>;
+  historyClear(): Promise<void>;
+  /** Asks where to save and writes every connection without passwords. Null if cancelled. */
+  exportConnections(): Promise<{ count: number; path: string } | null>;
+  /** Asks for an export file and adds its connections. Null if cancelled. */
+  importConnections(): Promise<{ added: number; skipped: number } | null>;
+}
+
+export interface HistoryEntry {
+  id: string;
+  /** Unix time in milliseconds. */
+  ts: number;
+  connId: string;
+  connName: string;
+  db?: string;
+  sql: string;
+  ms: number;
+  rows: number;
+  affected: number;
+  error?: string;
 }
 
 export interface SourceOptions {

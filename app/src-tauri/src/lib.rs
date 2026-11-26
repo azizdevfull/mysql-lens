@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use lens_core::engine::Engine;
 use lens_core::error::LensError;
+use lens_core::history::{HistoryEntry, HistoryStore};
 use lens_core::store::{ConnStore, SecretStore};
 use lens_core::types::*;
 use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -44,7 +45,11 @@ impl SecretStore for KeychainSecrets {
 
 struct AppState {
     engine: Engine,
+    history: HistoryStore,
 }
+
+/// Executed batches kept in the history file.
+const HISTORY_CAP: usize = 1000;
 
 #[tauri::command]
 async fn list_connections(s: State<'_, AppState>) -> R<Vec<Connection>> {
@@ -111,7 +116,40 @@ async fn table_page(s: State<'_, AppState>, id: String, db: String, table: Strin
 
 #[tauri::command]
 async fn query(s: State<'_, AppState>, id: String, db: Option<String>, sql: String) -> R<Vec<ResultSet>> {
-    s.engine.query(&id, db.as_deref(), &sql).await
+    let res = s.engine.query(&id, db.as_deref(), &sql).await;
+    let name = s.engine.list_connections().into_iter().find(|c| c.id == id).map(|c| c.name).unwrap_or_default();
+    let entry = match &res {
+        Ok(results) => HistoryEntry::from_results(&id, &name, db.as_deref(), &sql, results),
+        Err(e) => HistoryEntry { error: Some(e.to_string()), ..HistoryEntry::from_results(&id, &name, db.as_deref(), &sql, &[]) },
+    };
+    // History is a convenience: a failed write must not fail the query.
+    let _ = s.history.add(entry);
+    res
+}
+
+#[tauri::command]
+async fn history_list(s: State<'_, AppState>) -> R<Vec<HistoryEntry>> {
+    Ok(s.history.list())
+}
+
+#[tauri::command]
+async fn history_delete(s: State<'_, AppState>, id: String) -> R<()> {
+    s.history.delete(&id)
+}
+
+#[tauri::command]
+async fn history_clear(s: State<'_, AppState>) -> R<()> {
+    s.history.clear()
+}
+
+#[tauri::command]
+async fn export_connections(s: State<'_, AppState>, path: PathBuf) -> R<usize> {
+    s.engine.export_connections(&path)
+}
+
+#[tauri::command]
+async fn import_connections(s: State<'_, AppState>, path: PathBuf) -> R<lens_core::conn_io::ImportSummary> {
+    s.engine.import_connections(&path)
 }
 
 #[tauri::command]
@@ -178,7 +216,8 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
             let engine = Engine::new(ConnStore::new(dir.join("connections.json")), Arc::new(KeychainSecrets));
-            app.manage(AppState { engine });
+            let history = HistoryStore::new(dir.join("history.jsonl"), HISTORY_CAP);
+            app.manage(AppState { engine, history });
 
             // Same flags Tauri uses by default; the smoke test can additionally
             // ask for a DevTools port (never enabled for normal starts).
@@ -217,7 +256,12 @@ pub fn run() {
             dump_database,
             import_sql,
             import_preview,
-            import_data
+            import_data,
+            history_list,
+            history_delete,
+            history_clear,
+            export_connections,
+            import_connections
         ])
         .run(tauri::generate_context!())
         .expect("error while running MySQL Lens");

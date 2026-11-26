@@ -76,6 +76,14 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 
 ---
 
+## Tayyor bo'lganlar (0.4.0)
+
+- ✅ So'rovlar tarixi (`Ctrl+H`): har bir bajarilgan so'rov ulanish, baza, vaqt va davomiylik bilan `history.jsonl`ga yoziladi (oxirgi 1000 ta). Qidiruv, yangi tab'da ochish, o'chirish.
+- ✅ Explorer: jadval, view, routine va trigger uchun "Show DDL"; jadval uchun SELECT / INSERT / UPDATE / DELETE shablonlari.
+- ✅ Ulanishlar ro'yxatini export/import qilish (parollarsiz). Fayl formati VS Code kengaytmasi bilan bir xil.
+
+---
+
 ## Keyinroq (g'oyalar)
 
 - Saqlangan so'rovlar va snippetlar (`Ctrl+K` orqali)

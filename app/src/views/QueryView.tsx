@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
-import { AlertCircle, CheckCircle2, ChevronDown, Database, ListChecks, Loader2, Play, PlayCircle, Square, Table2, TerminalSquare } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, Database, History, ListChecks, Loader2, Play, PlayCircle, Square, Table2, TerminalSquare } from 'lucide-react';
+import { openHistory } from '@/components/HistoryDialog';
 import { backend } from '@/lib/backend';
 import { useApp, type Tab } from '@/lib/store';
 import type { Column, ResultSet } from '@/lib/types';
@@ -135,6 +136,11 @@ export function QueryView({ tab }: { tab: Tab }) {
             <Square className="fill-current" /> Cancel
           </Button>
         )}
+        <Tooltip content="Query history" shortcut="Ctrl+H">
+          <Button size="icon-sm" variant="ghost" onClick={openHistory}>
+            <History />
+          </Button>
+        </Tooltip>
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           {running ? (
             <span className="flex items-center gap-1.5 text-primary tabular-nums">

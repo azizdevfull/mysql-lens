@@ -128,6 +128,33 @@ impl Engine {
         Ok(())
     }
 
+    /// Writes every connection (without ids or secrets) to `path`. Returns how many were written.
+    pub fn export_connections(&self, path: &std::path::Path) -> Result<usize> {
+        let list = self.store.list();
+        std::fs::write(path, serde_json::to_vec_pretty(&crate::conn_io::export_json(&list))?)?;
+        Ok(list.len())
+    }
+
+    /// Adds the connections described in `path`, skipping ones already in the list.
+    pub fn import_connections(&self, path: &std::path::Path) -> Result<crate::conn_io::ImportSummary> {
+        let text = std::fs::read_to_string(path)?;
+        let mut all = self.store.list();
+        let mut summary = crate::conn_io::ImportSummary::default();
+        for mut c in crate::conn_io::parse_import(&text)? {
+            if crate::conn_io::is_duplicate(&all, &c) {
+                summary.skipped += 1;
+                continue;
+            }
+            c.id = uuid::Uuid::new_v4().to_string();
+            all.push(c);
+            summary.added += 1;
+        }
+        if summary.added > 0 {
+            self.store.write(&all)?;
+        }
+        Ok(summary)
+    }
+
     pub fn set_secret(&self, id: &str, kind: &str, value: Option<&str>) {
         self.secrets.set(&secret_key(kind, id), value.filter(|v| !v.is_empty()));
     }
