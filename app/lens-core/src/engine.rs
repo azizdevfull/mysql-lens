@@ -387,6 +387,25 @@ impl Engine {
         Ok(out)
     }
 
+    /* ----------------------------- binary values ----------------------------- */
+
+    /// The full bytes of one cell, for values the grid only shows as "(binary N bytes)".
+    pub async fn cell_bytes(&self, id: &str, db: &str, table: &str, column: &str, cols: &[Column], key: &serde_json::Map<String, Cell>) -> Result<Vec<u8>> {
+        if key.is_empty() {
+            return Err(msg("This row has no key, so the value cannot be read again."));
+        }
+        let mut conn = self.conn(id, None).await?;
+        let from = qualified(db, table);
+        let wh = Self::key_where(cols, key);
+        let len: Option<Option<u64>> = conn.query_first(format!("SELECT LENGTH({}) FROM {from} WHERE {wh} LIMIT 1", qid(column))).await?;
+        let len = len.ok_or_else(|| msg("Row was not found. Reload and try again."))?.unwrap_or(0);
+        if len > MAX_CELL_BYTES {
+            return Err(msg(format!("Value is {} MB; values over {} MB are not loaded.", len / 1_048_576, MAX_CELL_BYTES / 1_048_576)));
+        }
+        let v: Option<Option<Vec<u8>>> = conn.query_first(format!("SELECT {} FROM {from} WHERE {wh} LIMIT 1", qid(column))).await?;
+        Ok(v.flatten().unwrap_or_default())
+    }
+
     /* ----------------------------- data ----------------------------- */
 
     pub async fn table_page(&self, id: &str, db: &str, table: &str, req: PageRequest) -> Result<TablePage> {
@@ -615,6 +634,9 @@ impl Engine {
     }
 }
 
+/// Largest cell value loaded into the value editor or read from a file.
+pub const MAX_CELL_BYTES: u64 = 32 * 1024 * 1024;
+
 /// Groups `KEY_COLUMN_USAGE` rows (constraint, schema, table, column, ref schema,
 /// ref table, ref column; ordered by constraint and position) into foreign keys.
 pub fn group_foreign_keys(rows: Vec<[String; 7]>) -> Vec<ForeignKey> {
@@ -657,6 +679,7 @@ fn _futures_are_send(e: &Engine) {
     send(e.save_connection(todo!(), None));
     send(e.foreign_keys("", "", ""));
     send(e.count_rows("", &[], 1));
+    send(e.cell_bytes("", "", "", "", &[], todo!()));
 }
 
 #[cfg(test)]
