@@ -4,6 +4,24 @@ A MySQL and MariaDB client for VS Code with **unlimited connections**, SSH tunne
 
 ![Table editor with SQL autocomplete](media/screenshots/autocomplete.png)
 
+## Windows desktop app
+
+Besides the VS Code extension, MySQL Lens is a standalone Windows app. Install or update it with one command; no administrator rights are needed.
+
+PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/azizdevfull/mysql-lens/main/install.ps1 | iex
+```
+
+cmd:
+
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/azizdevfull/mysql-lens/main/install.ps1 | iex"
+```
+
+To install a specific version, set `$env:MYSQL_LENS_VERSION = '0.6.0'` first. The installer can also be downloaded from [Releases](https://github.com/azizdevfull/mysql-lens/releases/latest). Once installed, the app updates itself.
+
 ## Features
 
 ### Connections
