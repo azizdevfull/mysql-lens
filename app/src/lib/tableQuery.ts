@@ -10,18 +10,18 @@ export interface TableQueryState {
 const RESERVED = /^(select|from|where|order|group|by|limit|offset|key|keys|index|table|status|desc|asc|user|range|rank|rows|row|window|function|interval|match|condition|signal|groups|lead|lag|system|virtual|check|default|values|value|read|write|change|column|columns|database|schema|primary|unique|join|left|right|on|in|is|not|and|or|like|as|set|update|delete|insert|into|create|drop|alter|use|show|case|when|then|else|end|null|true|false|int|char|varchar|date|time|timestamp|year|month|day)$/i;
 
 /** Backticks only when the name needs them, so the query reads like hand-written SQL. */
-function qid(name: string): string {
+export function sqlName(name: string): string {
   return /^[A-Za-z_][\w$]*$/.test(name) && !RESERVED.test(name) ? name : '`' + name.replace(/`/g, '``') + '`';
 }
 
 /** The SELECT shown in the table editor for the current paging state. */
 export function buildTableQuery(table: string, s: TableQueryState): string {
-  let sql = `SELECT * FROM ${qid(table)}`;
+  let sql = `SELECT * FROM ${sqlName(table)}`;
   if (s.filter.trim()) {
     sql += ` WHERE ${s.filter.trim()}`;
   }
   if (s.sort) {
-    sql += ` ORDER BY ${qid(s.sort.column)} ${s.sort.dir === 'desc' ? 'DESC' : 'ASC'}`;
+    sql += ` ORDER BY ${sqlName(s.sort.column)} ${s.sort.dir === 'desc' ? 'DESC' : 'ASC'}`;
   }
   sql += ` LIMIT ${s.pageSize}`;
   if (s.page > 0) {
