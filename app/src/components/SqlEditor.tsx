@@ -3,8 +3,10 @@ import CodeMirror, { EditorView, keymap, Prec, type ReactCodeMirrorRef } from '@
 import { MySQL, sql } from '@codemirror/lang-sql';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
+import { toast } from 'sonner';
 import type { Column } from '@/lib/types';
 import { splitSql, statementAt } from '@/lib/sqlsplit';
+import { formatSql } from '@/lib/format';
 
 const theme = EditorView.theme({
   '&': { backgroundColor: 'transparent', color: 'var(--foreground)' },
@@ -43,8 +45,33 @@ const highlight = HighlightStyle.define([
   { tag: [t.lineComment, t.blockComment], color: 'var(--syntax-comment)', fontStyle: 'italic' },
   { tag: [t.typeName], color: 'var(--syntax-function)' },
   { tag: [t.special(t.name)], color: 'var(--syntax-number)' },
+  { tag: [t.propertyName], color: 'var(--syntax-function)' },
   { tag: [t.operator, t.punctuation], color: 'color-mix(in oklch, var(--foreground) 70%, transparent)' },
 ]);
+
+/** The editor look (colors, tooltips, highlighting) for other CodeMirror editors in the app. */
+export const editorLook = [syntaxHighlighting(highlight), theme];
+
+/**
+ * Formats the selection, or the whole text when nothing is selected (Shift+Alt+F).
+ * Skipped if the text changed while the formatter was loading.
+ */
+function formatCommand(view: EditorView): boolean {
+  const sel = view.state.selection.main;
+  const from = sel.empty ? 0 : sel.from;
+  const to = sel.empty ? view.state.doc.length : sel.to;
+  const before = view.state.doc.toString();
+  const text = before.slice(from, to);
+  if (!text.trim()) return true;
+  formatSql(text).then(
+    (pretty) => {
+      if (view.state.doc.toString() !== before || pretty === text) return;
+      view.dispatch({ changes: { from, to, insert: pretty }, selection: sel.empty ? undefined : { anchor: from, head: from + pretty.length }, userEvent: 'input.format' });
+    },
+    (e: Error) => toast.error('Could not format this SQL', { description: e.message }),
+  );
+  return true;
+}
 
 export interface SqlEditorProps {
   value: string;
@@ -58,10 +85,12 @@ export interface SqlEditorProps {
   autoFocus?: boolean;
   /** Filled with a function that runs like Ctrl+Enter (all = Ctrl+Shift+Enter), for toolbar buttons. */
   runRef?: React.MutableRefObject<((all: boolean) => void) | null>;
+  /** Filled with a function that formats like Shift+Alt+F, for toolbar buttons. */
+  formatRef?: React.MutableRefObject<(() => void) | null>;
   className?: string;
 }
 
-export function SqlEditor({ value, onChange, onRun, schema, defaultTable, placeholder, minimal, autoFocus, runRef, className }: SqlEditorProps) {
+export function SqlEditor({ value, onChange, onRun, schema, defaultTable, placeholder, minimal, autoFocus, runRef, formatRef, className }: SqlEditorProps) {
   const cm = useRef<ReactCodeMirrorRef>(null);
   const { extensions, run } = useMemo(() => {
     const cmSchema = schema ? Object.fromEntries(Object.entries(schema).map(([table, cols]) => [table, cols.map((c) => ({ label: c.name, type: 'property', detail: c.type, boost: c.pk ? 2 : 0 }))])) : undefined;
@@ -94,6 +123,7 @@ export function SqlEditor({ value, onChange, onRun, schema, defaultTable, placeh
         keymap.of([
           { key: 'Mod-Enter', run: run(false) },
           { key: 'Shift-Mod-Enter', run: run(true) },
+          { key: 'Shift-Alt-f', run: formatCommand },
         ]),
       ),
       EditorView.lineWrapping,
@@ -107,6 +137,16 @@ export function SqlEditor({ value, onChange, onRun, schema, defaultTable, placeh
       if (view) {
         view.focus();
         run(all)(view);
+      }
+    };
+  }
+
+  if (formatRef) {
+    formatRef.current = () => {
+      const view = cm.current?.view;
+      if (view) {
+        view.focus();
+        formatCommand(view);
       }
     };
   }
