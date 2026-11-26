@@ -372,6 +372,21 @@ impl Engine {
         Ok(Relations { outgoing: group_foreign_keys(rows(outgoing)), incoming: group_foreign_keys(rows(incoming)) })
     }
 
+    /// Counts the rows matching each request, stopping at `cap` (so a huge table costs
+    /// at most `cap` index reads). A request that fails gives `None` instead of failing all.
+    pub async fn count_rows(&self, id: &str, items: &[CountRequest], cap: u64) -> Result<Vec<Option<u64>>> {
+        let mut conn = self.conn(id, None).await?;
+        let cap = cap.clamp(1, 1_000_000);
+        let mut out = Vec::with_capacity(items.len());
+        for it in items {
+            let filter = it.filter.trim();
+            let wh = if filter.is_empty() { String::new() } else { format!(" WHERE {filter}") };
+            let sql = format!("SELECT COUNT(*) FROM (SELECT 1 FROM {}{wh} LIMIT {cap}) AS x", qualified(&it.db, &it.table));
+            out.push(conn.query_first::<u64, _>(sql).await.ok().flatten());
+        }
+        Ok(out)
+    }
+
     /* ----------------------------- data ----------------------------- */
 
     pub async fn table_page(&self, id: &str, db: &str, table: &str, req: PageRequest) -> Result<TablePage> {
@@ -641,6 +656,7 @@ fn _futures_are_send(e: &Engine) {
     send(e.test_connection(todo!(), None));
     send(e.save_connection(todo!(), None));
     send(e.foreign_keys("", "", ""));
+    send(e.count_rows("", &[], 1));
 }
 
 #[cfg(test)]
