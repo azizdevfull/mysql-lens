@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.4",
+    "@codemirror/lang-json": "6.0.2",
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/language": "^6.13.1",
     "@codemirror/state": "^6.7.6",
@@ -49,6 +50,7 @@
     "react-resizable-panels": "^2.1.9",
     "react-responsive-carousel": "^3.2.23",
     "sonner": "^2.0.8",
+    "sql-formatter": "15.9.0",
     "tailwind-merge": "^3.7.1",
     "zustand": "^5.1.0"
   },
