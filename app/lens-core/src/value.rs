@@ -99,6 +99,20 @@ pub fn hex(bytes: &[u8]) -> String {
     s
 }
 
+/// Standard base64 with padding (RFC 4648), for sending binary values to the UI.
+pub fn base64(bytes: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let n = (chunk[0] as u32) << 16 | (*chunk.get(1).unwrap_or(&0) as u32) << 8 | *chunk.get(2).unwrap_or(&0) as u32;
+        out.push(T[(n >> 18) as usize & 63] as char);
+        out.push(T[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 { T[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 2 { T[n as usize & 63] as char } else { '=' });
+    }
+    out
+}
+
 /// Converts a value from the text protocol to a grid cell.
 pub fn to_cell(v: &Value, c: &mysql_async::Column) -> Cell {
     match v {
@@ -217,5 +231,15 @@ mod tests {
         let bin = Column { binary: Some(true), ..Default::default() };
         assert_eq!(cell_literal(&J::String("0xABCD".into()), Some(&bin)), "X'ABCD'");
         assert_eq!(cell_literal(&J::Null, None), "NULL");
+    }
+
+    #[test]
+    fn base64_matches_rfc4648() {
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+        assert_eq!(base64(&[0xff, 0xfe, 0x00]), "//4A");
     }
 }
