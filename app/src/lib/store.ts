@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { backend } from './backend';
-import type { Column, Connection, PageRequest } from './types';
+import type { Column, Connection, PageRequest, Relations } from './types';
 
 export type TabKind = 'welcome' | 'table' | 'query';
 
@@ -17,6 +17,8 @@ export interface Tab {
   dirty?: boolean;
   /** Table tabs: page, sort and filter, kept for session restore. */
   tableState?: PageRequest;
+  /** Bumped when an already open table tab is sent to a new `tableState` (foreign key navigation). */
+  nav?: number;
 }
 
 /** Current editor text of each query tab (kept out of the store so typing does not re-render). */
@@ -37,6 +39,7 @@ interface State {
   paletteOpen: boolean;
   connDialog: { open: boolean; editing?: Connection };
   schemaCache: Record<string, Record<string, Column[]>>;
+  relationsCache: Record<string, Relations>;
   treeVersion: number;
   /** Reopen the previous session's tabs on startup. */
   restoreSession: boolean;
@@ -47,7 +50,8 @@ interface State {
   setRestoreSession(on: boolean): void;
   connect(id: string): Promise<boolean>;
   disconnect(id: string): Promise<void>;
-  openTable(connId: string, db: string, table: string, isView?: boolean): void;
+  /** Opens (or focuses) a table tab. With `filter`, the tab shows only the matching rows. */
+  openTable(connId: string, db: string, table: string, isView?: boolean, filter?: string): void;
   openQuery(connId?: string, db?: string, sql?: string): void;
   closeTab(id: string): void;
   closeOthers(id: string): void;
@@ -60,6 +64,8 @@ interface State {
   openConnDialog(editing?: Connection): void;
   closeConnDialog(): void;
   schema(connId: string, db: string): Promise<Record<string, Column[]>>;
+  /** Foreign keys of a table (cached until the tree is refreshed). */
+  relations(connId: string, db: string, table: string): Promise<Relations>;
   refreshTree(): void;
 }
 
@@ -94,6 +100,7 @@ export const useApp = create<State>((set, get) => ({
   paletteOpen: false,
   connDialog: { open: false },
   schemaCache: {},
+  relationsCache: {},
   treeVersion: 0,
   restoreSession: initialRestore,
 
@@ -137,10 +144,15 @@ export const useApp = create<State>((set, get) => ({
     set((s) => ({ connState: { ...s.connState, [id]: 'off' } }));
   },
 
-  openTable(connId, db, table, isView) {
+  openTable(connId, db, table, isView, filter) {
+    const tableState = filter === undefined ? undefined : { page: 0, pageSize: 200, sort: null, filter };
     const existing = get().tabs.find((t) => t.kind === 'table' && t.connId === connId && t.db === db && t.table === table);
-    if (existing) return set({ active: existing.id });
-    const tab: Tab = { id: uid('t'), kind: 'table', title: table, connId, db, table, isView };
+    if (existing) {
+      if (!tableState) return set({ active: existing.id });
+      const state = { ...tableState, pageSize: existing.tableState?.pageSize ?? tableState.pageSize };
+      return set((s) => ({ active: existing.id, tabs: s.tabs.map((t) => (t.id === existing.id ? { ...t, tableState: state, nav: (t.nav ?? 0) + 1 } : t)) }));
+    }
+    const tab: Tab = { id: uid('t'), kind: 'table', title: table, connId, db, table, isView, tableState };
     set((s) => ({ tabs: [...s.tabs.filter((t) => t.kind !== 'welcome'), tab], active: tab.id }));
   },
 
@@ -217,7 +229,16 @@ export const useApp = create<State>((set, get) => ({
     return s;
   },
 
+  async relations(connId, db, table) {
+    const key = `${connId}|${db}|${table}`;
+    const cached = get().relationsCache[key];
+    if (cached) return cached;
+    const r = await backend.foreignKeys(connId, db, table);
+    set((st) => ({ relationsCache: { ...st.relationsCache, [key]: r } }));
+    return r;
+  },
+
   refreshTree() {
-    set((s) => ({ treeVersion: s.treeVersion + 1, schemaCache: {} }));
+    set((s) => ({ treeVersion: s.treeVersion + 1, schemaCache: {}, relationsCache: {} }));
   },
 }));
