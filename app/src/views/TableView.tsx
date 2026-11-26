@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, KeyRound, Lock, PanelRight, Play, Plus, RefreshCw, Search, Table2, Trash2, Undo2, Upload, Eye } from 'lucide-react';
+import { ArrowUpRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, KeyRound, Lock, Maximize2, PanelRight, Play, Plus, RefreshCw, Search, Table2, Trash2, Undo2, Upload, Eye } from 'lucide-react';
 import { backend } from '@/lib/backend';
 import { useApp, type Tab } from '@/lib/store';
-import type { Cell, Column, RowChange, SortSpec } from '@/lib/types';
-import { buildTableQuery, parseTableQuery } from '@/lib/tableQuery';
+import type { Cell, CellRef, Column, ForeignKey, Relations, RowChange, SortSpec } from '@/lib/types';
+import { buildTableQuery, parseTableQuery, sqlName } from '@/lib/tableQuery';
+import { describeTarget, foreignKeyOf, incomingTarget, isBinaryColumn, isJsonColumn, outgoingTarget, sqlLiteral } from '@/lib/relations';
 import { cn, formatMs } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge, Kbd, Tooltip } from '@/components/ui/misc';
 import { ExportMenu } from '@/components/ExportMenu';
 import { openImportWizard } from '@/components/ImportWizard';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DataGrid } from '@/components/DataGrid';
+import { DataGrid, type GridMenuItem } from '@/components/DataGrid';
+import { openValueEditor } from '@/components/ValueEditor';
 import { SqlEditor } from '@/components/SqlEditor';
-import { RowInspector } from '@/components/RowInspector';
+import { RowInspector, type Reference } from '@/components/RowInspector';
 import { confirmRun } from '@/components/confirmRun';
 import { splitSql } from '@/lib/sqlsplit';
 
@@ -30,7 +32,11 @@ export function TableView({ tab }: { tab: Tab }) {
   const { connId, db, table, isView } = tab as Required<Pick<Tab, 'connId' | 'db' | 'table'>> & Tab;
   const conn = useApp((s) => s.connections.find((c) => c.id === connId));
   const loadSchema = useApp((s) => s.schema);
+  const loadRelations = useApp((s) => s.relations);
   const [schema, setSchema] = useState<Record<string, Column[]>>();
+  const [relations, setRelations] = useState<Relations>({ outgoing: [], incoming: [] });
+  /** Rows pointing at the active row, per incoming foreign key (null while counting or if it failed). */
+  const [refCounts, setRefCounts] = useState<(number | null)[]>([]);
   // A restored tab reopens on its saved page, sort and filter.
   const [state, setState] = useState(() => tab.tableState ?? { page: 0, pageSize: 200, sort: null as SortSpec | null, filter: '' });
   const [query, setQuery] = useState(() => buildTableQuery(table, state));
@@ -52,6 +58,13 @@ export function TableView({ tab }: { tab: Tab }) {
   useEffect(() => {
     void loadSchema(connId, db).then(setSchema);
   }, [connId, db, loadSchema]);
+
+  // Foreign keys are a convenience: without them (or without the rights to read them) the table still works.
+  const treeVersion = useApp((s) => s.treeVersion);
+  useEffect(() => {
+    if (isView) return;
+    loadRelations(connId, db, table).then(setRelations, () => setRelations({ outgoing: [], incoming: [] }));
+  }, [connId, db, table, isView, loadRelations, treeVersion]);
 
   const resetEdits = () => {
     setEdits(new Map());
@@ -87,6 +100,12 @@ export function TableView({ tab }: { tab: Tab }) {
   }, []);
 
   const guard = () => !changeCount || window.confirm(`Discard ${changeCount} unsaved change(s)?`);
+
+  // Sent here by a foreign key link while already open: show the rows it asked for.
+  useEffect(() => {
+    if (tab.nav && tab.tableState && guard()) void load(tab.tableState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab.nav]);
 
   const runQuery = async (sql: string) => {
     if (!guard()) return;
@@ -205,6 +224,115 @@ export function TableView({ tab }: { tab: Tab }) {
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  /* ----------------------------- relations and values ----------------------------- */
+
+  const rowGetter = (r: number) => (name: string) => {
+    const c = data?.columns.findIndex((x) => x.name === name) ?? -1;
+    return c < 0 ? undefined : value(r, c);
+  };
+
+  // Links only on the table's own rows: custom query results may have other columns.
+  const fkAt = useCallback((col: number): ForeignKey | undefined => (data && !data.custom ? foreignKeyOf(relations.outgoing, data.columns[col]?.name) : undefined), [data, relations]);
+  const linkOf = useCallback((col: number) => {
+    const fk = fkAt(col);
+    return fk ? describeTarget(fk, db) : undefined;
+  }, [fkAt, db]);
+
+  const follow = (row: number, col: number) => {
+    const fk = fkAt(col);
+    if (!fk || !data) return;
+    const target = outgoingTarget(fk, data.columns, rowGetter(row));
+    if (!target) return toast.info(`${data.columns[col].name} is NULL: it does not point at any row`);
+    useApp.getState().openTable(connId, target.db, target.table, false, target.filter);
+  };
+
+  const openReferencing = (fk: ForeignKey, row: number) => {
+    if (!data) return;
+    const target = incomingTarget(fk, data.columns, (name) => {
+      const c = data.columns.findIndex((x) => x.name === name);
+      return c < 0 ? undefined : data.rows[row]?.[c];
+    });
+    if (target) useApp.getState().openTable(connId, target.db, target.table, false, target.filter);
+  };
+
+  /** Where a stored cell lives, so the value editor can read a large value in full. */
+  const cellRef = (row: number, col: number): CellRef | undefined => {
+    if (!data || data.custom || row >= baseCount || !data.keyColumns.length) return undefined;
+    const key = Object.fromEntries(data.keyColumns.map((k) => [k, data.rows[row][data.columns.findIndex((c) => c.name === k)]]));
+    return { connId, db, table, column: data.columns[col].name, columns: data.columns, key };
+  };
+
+  const openValue = (row: number, col: number) => {
+    if (!data) return;
+    const c = data.columns[col];
+    openValueEditor({
+      column: c,
+      value: value(row, col),
+      context: `${table} · ${row >= baseCount ? 'new row' : `row ${state.page * state.pageSize + row + 1}`}`,
+      readOnly: readOnly || deleted.has(row) || (!!c.autoIncrement && value(row, col) === null),
+      // A pending (unsaved) value is not in the table yet, so it is not read back from there.
+      cell: edits.get(row)?.has(col) ? undefined : cellRef(row, col),
+      onApply: (v) => setValue(row, col, v),
+    });
+  };
+
+  const filterBy = (row: number, col: number) => {
+    if (!data || data.custom || !guard()) return;
+    const c = data.columns[col];
+    const v = value(row, col);
+    const cond = v === null ? `${sqlName(c.name)} IS NULL` : `${sqlName(c.name)} = ${sqlLiteral(v, c)}`;
+    void load({ ...state, page: 0, filter: state.filter.trim() ? `(${state.filter.trim()}) AND ${cond}` : cond });
+  };
+
+  const menuItems = (row: number, col: number): GridMenuItem[] => {
+    if (!data) return [];
+    const c = data.columns[col];
+    const items: GridMenuItem[] = [];
+    const fk = fkAt(col);
+    if (fk) items.push({ label: `Open in ${fk.refTable}`, icon: <ArrowUpRight />, shortcut: 'Ctrl Click', onSelect: () => follow(row, col) });
+    if (isJsonColumn(c) || isBinaryColumn(c) || /text|char/i.test(c.type)) items.push({ label: 'Open value editor', icon: <Maximize2 />, onSelect: () => openValue(row, col) });
+    if (!data.custom && row < baseCount && !isBinaryColumn(c)) items.push({ label: 'Filter by this value', icon: <Filter />, onSelect: () => filterBy(row, col) });
+    return items;
+  };
+
+  // Count the rows pointing at the active row (capped), shortly after it becomes active.
+  const REF_CAP = 1000;
+  const refRow = activeRow !== undefined && activeRow < baseCount && data && !data.custom ? activeRow : undefined;
+  useEffect(() => {
+    setRefCounts([]);
+    if (refRow === undefined || !data || !relations.incoming.length) return;
+    const items = relations.incoming.map((fk) => incomingTarget(fk, data.columns, (name) => data.rows[refRow]?.[data.columns.findIndex((x) => x.name === name)]));
+    const wanted = items.flatMap((t) => (t ? [t] : []));
+    if (!wanted.length) return setRefCounts(items.map(() => 0));
+    let live = true;
+    const timer = window.setTimeout(() => {
+      backend.countRows(connId, wanted, REF_CAP).then(
+        (counts) => {
+          if (!live) return;
+          let i = 0;
+          setRefCounts(items.map((t) => (t ? counts[i++] : 0)));
+        },
+        () => live && setRefCounts(items.map(() => null)),
+      );
+    }, 200);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, [refRow, data, relations, connId]);
+
+  const references: Reference[] | undefined =
+    refRow === undefined || !relations.incoming.length
+      ? undefined
+      : relations.incoming.map((fk, i) => ({
+          label: fk.db === db ? fk.table : `${fk.db}.${fk.table}`,
+          detail: fk.columns.join(', '),
+          count: refCounts[i] ?? null,
+          counting: refCounts.length === 0,
+          capped: (refCounts[i] ?? 0) >= REF_CAP,
+          onOpen: () => openReferencing(fk, refRow),
+        }));
+
   const pages = data && !data.custom ? Math.max(1, Math.ceil(data.total / state.pageSize)) : 1;
   const go = (page: number) => guard() && void load({ ...state, page: Math.max(0, Math.min(pages - 1, page)) });
   const rowCount = baseCount + inserted.length;
@@ -301,6 +429,10 @@ export function TableView({ tab }: { tab: Tab }) {
               onAppendRow={addRow}
               onDeleteRows={deleteRows}
               onActiveRow={setActiveRow}
+              linkOf={linkOf}
+              onFollowLink={follow}
+              onOpenValue={openValue}
+              menuItems={menuItems}
               sort={state.sort}
               onSort={(col) => {
                 if (data.custom || !guard()) return;
@@ -340,6 +472,12 @@ export function TableView({ tab }: { tab: Tab }) {
             deleted={activeRow !== undefined && deleted.has(activeRow)}
             isModified={(c) => (activeRow === undefined ? false : activeRow >= baseCount ? !!inserted[activeRow - baseCount]?.touched.has(c) : !!edits.get(activeRow)?.has(c))}
             onChange={(c, v) => activeRow !== undefined && setValue(activeRow, c, v)}
+            linkOf={(c) => {
+              const fk = fkAt(c);
+              return fk && activeRow !== undefined ? { label: describeTarget(fk, db), onOpen: () => follow(activeRow, c) } : undefined;
+            }}
+            onOpenValue={activeRow === undefined ? undefined : (c) => openValue(activeRow, c)}
+            references={references}
             onDelete={readOnly || activeRow === undefined ? undefined : () => deleteRows([activeRow])}
             onDuplicate={
               readOnly || activeValues === undefined
