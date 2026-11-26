@@ -132,3 +132,33 @@ pub enum RowChange {
     Insert { values: serde_json::Map<String, Cell> },
     Delete { key: serde_json::Map<String, Cell> },
 }
+
+/// A foreign key: `columns` of `db.table` point at `ref_columns` of `ref_db.ref_table`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ForeignKey {
+    pub name: String,
+    pub db: String,
+    pub table: String,
+    pub columns: Vec<String>,
+    pub ref_db: String,
+    pub ref_table: String,
+    pub ref_columns: Vec<String>,
+}
+
+/// The foreign keys of one table: the ones it declares and the ones pointing at it.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Relations {
+    pub outgoing: Vec<ForeignKey>,
+    pub incoming: Vec<ForeignKey>,
+}
+
+/// Rows of `db.table` matching `filter` (a SQL condition) are counted.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CountRequest {
+    pub db: String,
+    pub table: String,
+    pub filter: String,
+}
