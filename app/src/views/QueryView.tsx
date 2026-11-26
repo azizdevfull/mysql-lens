@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
-import { AlertCircle, CheckCircle2, ChevronDown, Database, History, ListChecks, Loader2, Play, PlayCircle, Square, Table2, TerminalSquare } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, Database, History, ListChecks, Loader2, Play, PlayCircle, Square, Table2, TerminalSquare, WandSparkles } from 'lucide-react';
 import { openHistory } from '@/components/HistoryDialog';
 import { backend } from '@/lib/backend';
 import { liveSql, useApp, type Tab } from '@/lib/store';
@@ -15,6 +15,7 @@ import { DataGrid } from '@/components/DataGrid';
 import { ExportMenu } from '@/components/ExportMenu';
 import { SqlEditor } from '@/components/SqlEditor';
 import { confirmRun } from '@/components/confirmRun';
+import { openValueEditor } from '@/components/ValueEditor';
 
 
 export function QueryView({ tab }: { tab: Tab }) {
@@ -32,6 +33,7 @@ export function QueryView({ tab }: { tab: Tab }) {
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const runRef = useRef<((all: boolean) => void) | null>(null);
+  const formatRef = useRef<(() => void) | null>(null);
   /** Id of the run in flight, for Cancel. */
   const runId = useRef<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -158,6 +160,11 @@ export function QueryView({ tab }: { tab: Tab }) {
             {cancelling ? <Loader2 className="animate-spin" /> : <Square className="fill-current" />} {cancelling ? 'Cancelling…' : 'Cancel'}
           </Button>
         )}
+        <Tooltip content="Format SQL (selection or all)" shortcut="Shift+Alt+F">
+          <Button size="icon-sm" variant="ghost" onClick={() => formatRef.current?.()}>
+            <WandSparkles />
+          </Button>
+        </Tooltip>
         <Tooltip content="Query history" shortcut="Ctrl+H">
           <Button size="icon-sm" variant="ghost" onClick={openHistory}>
             <History />
@@ -179,7 +186,7 @@ export function QueryView({ tab }: { tab: Tab }) {
 
       <PanelGroup direction="vertical" className="min-h-0 flex-1">
         <Panel defaultSize={42} minSize={15}>
-          <EditorPane sql={sql} onChange={onChange} schema={schema} onRun={run} runRef={runRef} />
+          <EditorPane sql={sql} onChange={onChange} schema={schema} onRun={run} runRef={runRef} formatRef={formatRef} />
         </Panel>
         <PanelResizeHandle className="group relative h-px bg-border data-[resize-handle-state=drag]:bg-primary data-[resize-handle-state=hover]:bg-primary">
           <div className="absolute inset-x-0 -top-1 -bottom-1" />
@@ -190,6 +197,7 @@ export function QueryView({ tab }: { tab: Tab }) {
               {rowsResults.map(({ r, i }, n) => (
                 <button
                   key={i}
+                  title={r.sql}
                   onClick={() => setActive(i)}
                   className={cn('flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors', active === i ? 'bg-background text-foreground shadow-xs ring-1 ring-border' : 'text-muted-foreground hover:text-foreground')}
                 >
@@ -214,7 +222,13 @@ export function QueryView({ tab }: { tab: Tab }) {
             </div>
             <div className="relative min-h-0 flex-1">
               {current?.kind === 'rows' ? (
-                <DataGrid columns={current.columns} rowCount={current.rows.length} value={(r, c) => current.rows[r][c]} dataKey={`${active}-${current.ms}-${current.sql}`} />
+                <DataGrid
+                  columns={current.columns}
+                  rowCount={current.rows.length}
+                  value={(r, c) => current.rows[r][c]}
+                  dataKey={`${active}-${current.ms}-${current.sql}`}
+                  onOpenValue={(r, c) => openValueEditor({ column: current.columns[c], value: current.rows[r][c], context: `Result ${rowsResults.findIndex((x) => x.i === active) + 1} · row ${r + 1}`, readOnly: true })}
+                />
               ) : (
                 <Messages results={results} running={running} />
               )}
@@ -226,7 +240,7 @@ export function QueryView({ tab }: { tab: Tab }) {
   );
 }
 
-function EditorPane({ sql, onChange, schema, onRun, runRef }: { sql: string; onChange: (v: string) => void; schema?: Record<string, Column[]>; onRun: (s: string[]) => void; runRef: React.MutableRefObject<((all: boolean) => void) | null> }) {
+function EditorPane({ sql, onChange, schema, onRun, runRef, formatRef }: { sql: string; onChange: (v: string) => void; schema?: Record<string, Column[]>; onRun: (s: string[]) => void; runRef: React.MutableRefObject<((all: boolean) => void) | null>; formatRef: React.MutableRefObject<(() => void) | null> }) {
   return (
     <div className="h-full overflow-hidden">
       <SqlEditor
@@ -235,6 +249,7 @@ function EditorPane({ sql, onChange, schema, onRun, runRef }: { sql: string; onC
         schema={schema}
         autoFocus
         runRef={runRef}
+        formatRef={formatRef}
         placeholder={"-- Write SQL here.  Ctrl+Enter runs the statement under the cursor, Ctrl+Space shows suggestions.\nSELECT * FROM customers WHERE city = 'Tashkent' LIMIT 100;"}
         onRun={onRun}
       />
