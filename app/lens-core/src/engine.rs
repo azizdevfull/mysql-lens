@@ -357,6 +357,21 @@ impl Engine {
         Ok(indexes.into_iter().find(|(n, unique, cs)| n == "PRIMARY" || (*unique && cs.iter().all(not_null))).map(|i| i.2).unwrap_or_default())
     }
 
+    /* ----------------------------- relations ----------------------------- */
+
+    /// Foreign keys declared by `db.table` and the ones in other tables that point at it.
+    pub async fn foreign_keys(&self, id: &str, db: &str, table: &str) -> Result<Relations> {
+        let mut conn = self.conn(id, None).await?;
+        // Two queries with plain equality: information_schema in MySQL 5.7 only skips
+        // reading every table's metadata when the schema and table names are constants.
+        const COLS: &str = "SELECT CONSTRAINT_NAME, TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_SCHEMA, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE";
+        const ORDER: &str = "ORDER BY TABLE_SCHEMA, TABLE_NAME, CONSTRAINT_NAME, ORDINAL_POSITION";
+        let outgoing: Vec<Row> = conn.exec(format!("{COLS} WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL {ORDER}"), (db, table)).await?;
+        let incoming: Vec<Row> = conn.exec(format!("{COLS} WHERE REFERENCED_TABLE_SCHEMA = ? AND REFERENCED_TABLE_NAME = ? {ORDER}"), (db, table)).await?;
+        let rows = |rs: Vec<Row>| rs.iter().map(|r| std::array::from_fn(|i| s(r, i))).collect::<Vec<[String; 7]>>();
+        Ok(Relations { outgoing: group_foreign_keys(rows(outgoing)), incoming: group_foreign_keys(rows(incoming)) })
+    }
+
     /* ----------------------------- data ----------------------------- */
 
     pub async fn table_page(&self, id: &str, db: &str, table: &str, req: PageRequest) -> Result<TablePage> {
@@ -585,6 +600,22 @@ impl Engine {
     }
 }
 
+/// Groups `KEY_COLUMN_USAGE` rows (constraint, schema, table, column, ref schema,
+/// ref table, ref column; ordered by constraint and position) into foreign keys.
+pub fn group_foreign_keys(rows: Vec<[String; 7]>) -> Vec<ForeignKey> {
+    let mut out: Vec<ForeignKey> = Vec::new();
+    for [name, db, table, column, ref_db, ref_table, ref_column] in rows {
+        match out.last_mut() {
+            Some(fk) if fk.name == name && fk.db == db && fk.table == table => {
+                fk.columns.push(column);
+                fk.ref_columns.push(ref_column);
+            }
+            _ => out.push(ForeignKey { name, db, table, columns: vec![column], ref_db, ref_table, ref_columns: vec![ref_column] }),
+        }
+    }
+    out
+}
+
 /// Keeps a JSON value from the UI as a plain value (helper for callers).
 pub fn cell(v: impl Into<J>) -> Cell {
     v.into()
@@ -609,11 +640,33 @@ fn _futures_are_send(e: &Engine) {
     send(e.import_data("", "", p, todo!(), todo!(), |_| true));
     send(e.test_connection(todo!(), None));
     send(e.save_connection(todo!(), None));
+    send(e.foreign_keys("", "", ""));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn row(c: &str, t: &str, col: &str, rt: &str, rc: &str) -> [String; 7] {
+        [c, "shop", t, col, "shop", rt, rc].map(String::from)
+    }
+
+    #[test]
+    fn foreign_keys_group_by_constraint() {
+        let fks = group_foreign_keys(vec![
+            row("fk_line_order", "order_lines", "order_id", "orders", "id"),
+            row("fk_line_order", "order_lines", "shop_id", "orders", "shop_id"),
+            row("fk_line_product", "order_lines", "product_id", "products", "id"),
+            // Same constraint name in another table is another key.
+            row("fk_line_product", "returns", "product_id", "products", "id"),
+        ]);
+        assert_eq!(fks.len(), 3);
+        assert_eq!(fks[0].columns, ["order_id", "shop_id"]);
+        assert_eq!(fks[0].ref_columns, ["id", "shop_id"]);
+        assert_eq!(fks[1].ref_table, "products");
+        assert_eq!(fks[2].table, "returns");
+        assert!(group_foreign_keys(vec![]).is_empty());
+    }
 
     #[test]
     fn key_where_quotes_and_handles_null() {
