@@ -3,7 +3,7 @@ import { checkForUpdates } from '@/lib/updater';
 import { backend } from '@/lib/backend';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Toaster, toast } from 'sonner';
-import { Command, Database, FileCode2, Home, Moon, Plus, Sun, Table2, X, Eye } from 'lucide-react';
+import { Command, Database, FileCode2, Home, Moon, Network, Plus, Sun, Table2, X, Eye } from 'lucide-react';
 import { useApp } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,8 @@ import { DumpDialog } from '@/components/DumpDialog';
 import { ImportWizard } from '@/components/ImportWizard';
 import { HistoryDialog, openHistory } from '@/components/HistoryDialog';
 import { ValueEditor } from '@/components/ValueEditor';
+import { SnippetsDialog } from '@/components/SnippetsDialog';
+import { ErView } from '@/views/ErView';
 import { TableView } from '@/views/TableView';
 import { QueryView, colorOf } from '@/views/QueryView';
 import { liveSql } from '@/lib/store';
@@ -35,7 +37,7 @@ function TabBar() {
       <div className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto [scrollbar-width:none]">
         {tabs.map((t) => {
           const conn = connections.find((c) => c.id === t.connId);
-          const Icon = t.kind === 'welcome' ? Home : t.kind === 'query' ? FileCode2 : t.isView ? Eye : Table2;
+          const Icon = t.kind === 'welcome' ? Home : t.kind === 'query' ? FileCode2 : t.kind === 'er' ? Network : t.isView ? Eye : Table2;
           return (
             <ContextMenu key={t.id}>
             <ContextMenuTrigger asChild>
@@ -47,7 +49,7 @@ function TabBar() {
               )}
             >
               {t.id === active && conn && <span className="absolute inset-x-3 top-0 h-0.5 rounded-b" style={{ backgroundColor: colorOf(conn.color) }} />}
-              <Icon className={cn('size-3.5 shrink-0', t.kind === 'table' && 'text-primary', t.kind === 'query' && 'text-amber-500')} />
+              <Icon className={cn('size-3.5 shrink-0', t.kind === 'table' && 'text-primary', t.kind === 'query' && 'text-amber-500', t.kind === 'er' && 'text-violet-500')} />
               <span className="truncate">{t.title}</span>
               {t.dirty && <span className="size-1.5 shrink-0 rounded-full bg-foreground/60 group-hover:hidden" />}
               <button
@@ -213,7 +215,7 @@ export default function App() {
               <div className={cn('relative min-h-0 flex-1', prod && 'after:pointer-events-none after:absolute after:inset-0 after:z-10 after:ring-2 after:ring-destructive/70 after:ring-inset')}>
                 {tabs.map((t) => (
                   <div key={t.id} className={cn('absolute inset-0', t.id !== active && 'invisible')}>
-                    {!shown.has(t.id) && t.id !== active ? null : t.kind === 'welcome' ? <Welcome /> : t.kind === 'table' ? <TableView tab={t} /> : <QueryView tab={t} />}
+                    {!shown.has(t.id) && t.id !== active ? null : t.kind === 'welcome' ? <Welcome /> : t.kind === 'table' ? <TableView tab={t} /> : t.kind === 'er' ? <ErView tab={t} /> : <QueryView tab={t} />}
                   </div>
                 ))}
               </div>
@@ -229,6 +231,7 @@ export default function App() {
       <ImportWizard />
       <HistoryDialog />
       <ValueEditor />
+      <SnippetsDialog />
       <Toaster theme={theme} position="bottom-right" richColors closeButton toastOptions={{ className: 'font-sans' }} />
     </TooltipProvider>
   );

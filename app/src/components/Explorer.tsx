@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  AlertCircle, ChevronRight, Code2, Copy, Database, Download, Eye, FilePlus2, FileSpreadsheet, FileCode2, FileDown, FileUp, FolderClosed, FunctionSquare, Loader2, Lock, MoreHorizontal, Pencil, Plug, PlugZap, Plus, RefreshCw, ScrollText, Search, Server, Table2, Trash2, Upload, Workflow, Zap,
+  AlertCircle, ChevronRight, Code2, Copy, Database, Download, Eye, FilePlus2, FileSpreadsheet, FileCode2, FileDown, FileUp, FolderClosed, FunctionSquare, Loader2, Lock, MoreHorizontal, Network, Pencil, Plug, PlugZap, Plus, RefreshCw, ScrollText, Search, Server, Table2, Trash2, Upload, Workflow, Zap,
 } from 'lucide-react';
 import { backend } from '@/lib/backend';
 import { useApp } from '@/lib/store';
@@ -338,6 +338,9 @@ function DatabaseNode({ connId, db, filter, defaultOpen }: { connId: string; db:
           <RefreshCw /> Refresh
         </ContextMenuItem>
         <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => useApp.getState().openEr(connId, db)}>
+          <Network /> ER diagram
+        </ContextMenuItem>
         <ContextMenuItem onSelect={() => openDumpDialog(connId, db)}>
           <Download /> Export database (SQL dump)…
         </ContextMenuItem>

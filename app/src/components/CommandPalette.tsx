@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Database, Download, Eye, FileDown, FilePlus2, FileUp, History, Moon, Plus, RefreshCw, RotateCcw, Server, Sun, Table2 } from 'lucide-react';
+import { Bookmark, Database, Download, Eye, FileDown, FilePlus2, FileUp, History, Moon, Network, Plus, RefreshCw, RotateCcw, Server, Sun, Table2 } from 'lucide-react';
 import { openHistory } from '@/components/HistoryDialog';
+import { openSnippets } from '@/components/SnippetsDialog';
 import { exportConnections, importConnections } from '@/components/Explorer';
 import { checkForUpdates } from '@/lib/updater';
 import { backend } from '@/lib/backend';
 import { useApp } from '@/lib/store';
-import type { TableMeta } from '@/lib/types';
+import type { Snippet, TableMeta } from '@/lib/types';
 import { formatCount } from '@/lib/utils';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from '@/components/ui/command';
@@ -24,9 +25,17 @@ export function CommandPalette() {
   const connections = useApp((s) => s.connections);
   const connState = useApp((s) => s.connState);
   const theme = useApp((s) => s.theme);
-  const { openTable, openQuery, openConnDialog, toggleTheme, refreshTree, setRestoreSession } = useApp.getState();
+  const { openTable, openQuery, openConnDialog, toggleTheme, refreshTree, setRestoreSession, openSnippet, openEr } = useApp.getState();
   const restoreSession = useApp((s) => s.restoreSession);
   const [hits, setHits] = useState<Hit[]>([]);
+  const [snippets, setSnippets] = useState<Snippet[]>([]);
+
+  useEffect(() => {
+    if (open) backend.snippetsList().then(setSnippets, () => setSnippets([]));
+  }, [open]);
+
+  // One entry per database of the connected servers, for "ER diagram".
+  const dbs = [...new Map(hits.map((h) => [`${h.connId}|${h.db}`, h])).values()];
 
   useEffect(() => {
     if (!open) return;
@@ -54,6 +63,17 @@ export function CommandPalette() {
           <CommandInput placeholder="Search tables, connections and actions…" />
           <CommandList>
             <CommandEmpty>Nothing found.</CommandEmpty>
+            {snippets.length > 0 && (
+              <CommandGroup heading="Saved queries">
+                {snippets.map((sn) => (
+                  <CommandItem key={sn.id} value={`saved ${sn.name} ${sn.db ?? ''}`} onSelect={() => run(() => openSnippet(sn))}>
+                    <Bookmark className="text-primary" />
+                    <span>{sn.name}</span>
+                    <span className="truncate text-xs text-muted-foreground">{sn.sql.replace(/\s+/g, ' ').slice(0, 60)}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
             {hits.length > 0 && (
               <CommandGroup heading="Tables">
                 {hits.map((h) => (
@@ -75,6 +95,15 @@ export function CommandPalette() {
               <CommandItem onSelect={() => run(openHistory)}>
                 <History /> Query history <CommandShortcut>Ctrl H</CommandShortcut>
               </CommandItem>
+              <CommandItem onSelect={() => run(openSnippets)}>
+                <Bookmark /> Saved queries…
+              </CommandItem>
+              {dbs.map((h) => (
+                <CommandItem key={`er.${h.connId}.${h.db}`} value={`er diagram ${h.db} ${h.connName}`} onSelect={() => run(() => openEr(h.connId, h.db))}>
+                  <Network /> ER diagram: {h.db}
+                  <span className="text-xs text-muted-foreground">{h.connName}</span>
+                </CommandItem>
+              ))}
               <CommandItem onSelect={() => run(() => openConnDialog())}>
                 <Plus /> New connection
               </CommandItem>
