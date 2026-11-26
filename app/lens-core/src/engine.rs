@@ -20,7 +20,19 @@ const SYSTEM_DBS: [&str; 4] = ["information_schema", "mysql", "performance_schem
 
 struct Session {
     pool: Pool,
+    /// For dedicated connections outside the pool (manual-commit query tabs).
+    opts: Opts,
     _tunnel: Option<Tunnel>,
+}
+
+/// A query tab in manual-commit mode keeps one connection with `autocommit = 0`,
+/// so its uncommitted changes stay in one transaction across runs.
+struct Pinned {
+    conn_id: String,
+    /// None while a run is using it.
+    conn: Option<Conn>,
+    /// Database selected with `USE` on this connection.
+    db: Option<String>,
 }
 
 pub struct Engine {
@@ -29,7 +41,8 @@ pub struct Engine {
     sessions: Mutex<HashMap<String, Arc<Session>>>,
     /// Queries in flight by run id: their connection and server thread id, and a stop flag.
     running: std::sync::Mutex<HashMap<String, Running>>,
-    /// Passwords typed at connect time for connections that do not save them.
+    /// Manual-commit connections by transaction key (the query tab).
+    pinned: Mutex<HashMap<String, Pinned>>,
     pub max_rows: usize,
 }
 
@@ -113,7 +126,7 @@ fn u(row: &Row, i: usize) -> u64 {
 
 impl Engine {
     pub fn new(store: ConnStore, secrets: Arc<dyn SecretStore>) -> Self {
-        Self { store, secrets, sessions: Mutex::new(HashMap::new()), running: std::sync::Mutex::new(HashMap::new()), max_rows: 5000 }
+        Self { store, secrets, sessions: Mutex::new(HashMap::new()), running: std::sync::Mutex::new(HashMap::new()), pinned: Mutex::new(HashMap::new()), max_rows: 5000 }
     }
 
     /* ----------------------------- connections ----------------------------- */
@@ -244,12 +257,12 @@ impl Engine {
         }
         let c = self.config(id)?;
         let (opts, tunnel) = self.build(&c, None).await?;
-        let pool = Pool::new(opts);
+        let pool = Pool::new(opts.clone());
         // Fail fast with a useful message instead of on the first query.
         let mut conn = tokio::time::timeout(Duration::from_secs(10), pool.get_conn()).await.map_err(|_| msg("Connection timed out. Check host, port and firewall."))??;
         conn.query_drop("SELECT 1").await?;
         drop(conn);
-        let s = Arc::new(Session { pool, _tunnel: tunnel });
+        let s = Arc::new(Session { pool, opts, _tunnel: tunnel });
         self.sessions.lock().await.insert(id.to_string(), s.clone());
         Ok(s)
     }
@@ -259,6 +272,11 @@ impl Engine {
     }
 
     pub async fn disconnect(&self, id: &str) {
+        // Open transactions of this connection end with it (the server rolls them back).
+        let keys: Vec<String> = self.pinned.lock().await.iter().filter(|(_, p)| p.conn_id == id).map(|(k, _)| k.clone()).collect();
+        for k in keys {
+            self.tx_close(&k).await;
+        }
         if let Some(s) = self.sessions.lock().await.remove(id) {
             let _ = s.pool.clone().disconnect().await;
         }
@@ -372,6 +390,18 @@ impl Engine {
         Ok(Relations { outgoing: group_foreign_keys(rows(outgoing)), incoming: group_foreign_keys(rows(incoming)) })
     }
 
+    /// Every foreign key declared by the tables of `db` (for the ER diagram).
+    pub async fn db_foreign_keys(&self, id: &str, db: &str) -> Result<Vec<ForeignKey>> {
+        let mut conn = self.conn(id, None).await?;
+        let rows: Vec<Row> = conn
+            .exec(
+                "SELECT CONSTRAINT_NAME, TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_SCHEMA, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND REFERENCED_TABLE_NAME IS NOT NULL ORDER BY TABLE_SCHEMA, TABLE_NAME, CONSTRAINT_NAME, ORDINAL_POSITION",
+                (db,),
+            )
+            .await?;
+        Ok(group_foreign_keys(rows.iter().map(|r| std::array::from_fn(|i| s(r, i))).collect()))
+    }
+
     /// Counts the rows matching each request, stopping at `cap` (so a huge table costs
     /// at most `cap` index reads). A request that fails gives `None` instead of failing all.
     pub async fn count_rows(&self, id: &str, items: &[CountRequest], cap: u64) -> Result<Vec<Option<u64>>> {
@@ -443,24 +473,36 @@ impl Engine {
     /// Splits `sql` into statements and runs them in order on one connection.
     pub async fn query(&self, id: &str, db: Option<&str>, sql: &str) -> Result<Vec<ResultSet>> {
         let statements: Vec<String> = split_sql(sql).into_iter().map(|s| s.sql).collect();
-        self.run_statements(id, db, &statements, None).await
+        self.run_statements(id, db, &statements, None, None).await
     }
 
     /// Runs already split statements as they are (a procedure body keeps its `;`).
     /// With a `run_id`, `cancel(run_id)` stops it. Stops at the first error.
-    pub async fn run_statements(&self, id: &str, db: Option<&str>, statements: &[String], run_id: Option<&str>) -> Result<Vec<ResultSet>> {
+    /// With a `tx` key the statements run on that tab's manual-commit connection.
+    pub async fn run_statements(&self, id: &str, db: Option<&str>, statements: &[String], run_id: Option<&str>, tx: Option<&str>) -> Result<Vec<ResultSet>> {
         let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let _guard = RunGuard { running: &self.running, run_id: run_id.map(str::to_string) };
         // Registered before connecting, so a cancel during a slow connect still stops the run.
         if let Some(rid) = run_id {
             self.running.lock().unwrap().insert(rid.to_string(), Running { conn_id: id.to_string(), thread_id: 0, cancelled: cancelled.clone() });
         }
-        let mut conn = self.conn(id, db).await?;
+        let mut conn = match tx {
+            Some(key) => self.pinned_take(id, key, db).await?,
+            None => self.conn(id, db).await?,
+        };
         if let Some(rid) = run_id {
             if let Some(r) = self.running.lock().unwrap().get_mut(rid) {
                 r.thread_id = conn.id();
             }
         }
+        let out = self.run_on(&mut conn, statements, &cancelled).await;
+        if let Some(key) = tx {
+            self.pinned_put(key, conn).await;
+        }
+        Ok(out)
+    }
+
+    async fn run_on(&self, conn: &mut Conn, statements: &[String], cancelled: &std::sync::atomic::AtomicBool) -> Vec<ResultSet> {
         let mut out = Vec::new();
         for st in statements.iter().map(|s| s.trim()).filter(|s| !s.is_empty()) {
             let started = Instant::now();
@@ -468,7 +510,7 @@ impl Engine {
                 out.push(ResultSet { kind: "error".into(), sql: st.to_string(), columns: vec![], rows: vec![], total_rows: 0, affected_rows: None, error: Some(CANCELLED.into()), ms: 0 });
                 break;
             }
-            match self.run_one(&mut conn, st).await {
+            match self.run_one(conn, st).await {
                 Ok(mut sets) => {
                     let ms = started.elapsed().as_millis() as u64;
                     for r in sets.iter_mut() {
@@ -483,7 +525,76 @@ impl Engine {
                 }
             }
         }
-        Ok(out)
+        out
+    }
+
+    /* ----------------------------- manual commit ----------------------------- */
+
+    /// Takes the tab's manual-commit connection (opening it on first use) and selects `db`.
+    async fn pinned_take(&self, id: &str, key: &str, db: Option<&str>) -> Result<Conn> {
+        let existing = {
+            let mut map = self.pinned.lock().await;
+            match map.get_mut(key) {
+                Some(p) if p.conn_id == id => match p.conn.take() {
+                    Some(c) => Some((c, p.db.clone())),
+                    None => return Err(msg("A query is still running in this tab.")),
+                },
+                // The tab switched connections: the old transaction cannot continue.
+                Some(_) => return Err(msg("This tab has an open transaction on another connection. Commit or roll it back first.")),
+                None => None,
+            }
+        };
+        let (mut conn, current) = match existing {
+            Some(x) => x,
+            None => {
+                let s = self.session(id).await?;
+                let mut conn = tokio::time::timeout(Duration::from_secs(10), Conn::new(s.opts.clone())).await.map_err(|_| msg("Connection timed out. Check host, port and firewall."))??;
+                conn.query_drop("SET autocommit = 0").await?;
+                self.pinned.lock().await.insert(key.to_string(), Pinned { conn_id: id.to_string(), conn: None, db: None });
+                (conn, None)
+            }
+        };
+        let want = db.filter(|d| !d.is_empty());
+        if want.is_some() && want != current.as_deref() {
+            if let Err(e) = conn.query_drop(format!("USE {}", qid(want.unwrap()))).await {
+                self.pinned_put(key, conn).await;
+                return Err(e.into());
+            }
+            if let Some(p) = self.pinned.lock().await.get_mut(key) {
+                p.db = want.map(str::to_string);
+            }
+        }
+        Ok(conn)
+    }
+
+    async fn pinned_put(&self, key: &str, conn: Conn) {
+        match self.pinned.lock().await.get_mut(key) {
+            Some(p) => p.conn = Some(conn),
+            // Closed while the run was going on: end it here.
+            None => drop(tokio::spawn(async move {
+                let _ = conn.disconnect().await;
+            })),
+        }
+    }
+
+    /// Commits or rolls back the tab's transaction. The connection stays in manual-commit mode.
+    pub async fn tx_end(&self, id: &str, key: &str, commit: bool) -> Result<()> {
+        if !self.pinned.lock().await.contains_key(key) {
+            return Ok(()); // nothing ran yet, so nothing is open
+        }
+        let mut conn = self.pinned_take(id, key, None).await?;
+        let r = conn.query_drop(if commit { "COMMIT" } else { "ROLLBACK" }).await;
+        self.pinned_put(key, conn).await;
+        Ok(r?)
+    }
+
+    /// Ends the tab's manual-commit connection, rolling back anything not committed.
+    pub async fn tx_close(&self, key: &str) {
+        let p = self.pinned.lock().await.remove(key);
+        if let Some(Pinned { conn: Some(mut conn), .. }) = p {
+            let _ = conn.query_drop("ROLLBACK").await;
+            let _ = conn.disconnect().await;
+        }
     }
 
     /// Stops the run started with `run_id`: the statement executing on the server
@@ -680,6 +791,10 @@ fn _futures_are_send(e: &Engine) {
     send(e.foreign_keys("", "", ""));
     send(e.count_rows("", &[], 1));
     send(e.cell_bytes("", "", "", "", &[], todo!()));
+    send(e.db_foreign_keys("", ""));
+    send(e.run_statements("", None, &[], None, Some("")));
+    send(e.tx_end("", "", true));
+    send(e.tx_close(""));
 }
 
 #[cfg(test)]
