@@ -35,6 +35,8 @@ function snapshot(): Saved {
       isView: t.isView,
       sql: t.kind === 'query' ? (liveSql.get(t.id) ?? t.sql ?? '') : undefined,
       tableState: t.tableState,
+      manualCommit: t.kind === 'query' && t.manualCommit ? true : undefined,
+      snippetId: t.snippetId,
     })),
   };
 }
@@ -94,7 +96,20 @@ export function parseSession(text: string, connIds: Set<string>): { tabs: SavedT
       tabs.push({ kind: 'table', title: str(x.title) ?? table, connId, db, table, isView: x.isView === true, tableState: pageRequest(x.tableState) });
     } else if (x.kind === 'query') {
       // A query tab of a deleted connection keeps its text; the user picks another connection.
-      tabs.push({ kind: 'query', title: str(x.title) ?? 'Query', connId: known ? connId : undefined, db: known ? str(x.db) : undefined, sql: str(x.sql) ?? '' });
+      tabs.push({
+        kind: 'query',
+        title: str(x.title) ?? 'Query',
+        connId: known ? connId : undefined,
+        db: known ? str(x.db) : undefined,
+        sql: str(x.sql) ?? '',
+        // A restored tab starts with no open transaction, but keeps its commit mode.
+        manualCommit: x.manualCommit === true || undefined,
+        snippetId: str(x.snippetId),
+      });
+    } else if (x.kind === 'er') {
+      const db = str(x.db);
+      if (!known || !db) return;
+      tabs.push({ kind: 'er', title: str(x.title) ?? `${db} · ER`, connId, db });
     }
   });
   return { tabs, active: Math.min(active, Math.max(0, tabs.length - 1)) };

@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { backend } from './backend';
-import type { Column, Connection, PageRequest, Relations } from './types';
+import type { Column, Connection, PageRequest, Relations, Snippet } from './types';
 
-export type TabKind = 'welcome' | 'table' | 'query';
+export type TabKind = 'welcome' | 'table' | 'query' | 'er';
 
 export interface Tab {
   id: string;
@@ -17,6 +17,10 @@ export interface Tab {
   dirty?: boolean;
   /** Table tabs: page, sort and filter, kept for session restore. */
   tableState?: PageRequest;
+  /** Query tabs: statements run in one transaction until Commit or Rollback. */
+  manualCommit?: boolean;
+  /** Query tabs opened from (or saved as) a saved query. */
+  snippetId?: string;
   /** Bumped when an already open table tab is sent to a new `tableState` (foreign key navigation). */
   nav?: number;
 }
@@ -25,7 +29,15 @@ export interface Tab {
 export const liveSql = new Map<string, string>();
 
 /** A tab as saved in the session file. */
-export type SavedTab = Pick<Tab, 'kind' | 'title' | 'connId' | 'db' | 'table' | 'isView' | 'sql' | 'tableState'>;
+export type SavedTab = Pick<Tab, 'kind' | 'title' | 'connId' | 'db' | 'table' | 'isView' | 'sql' | 'tableState' | 'manualCommit' | 'snippetId'>;
+
+/**
+ * Asked before a tab closes; returns false to keep it open (e.g. an uncommitted
+ * transaction). Registered by the tab's view while it is mounted.
+ */
+export const closeGuards = new Map<string, () => boolean>();
+
+const mayClose = (ids: string[]) => ids.every((id) => closeGuards.get(id)?.() ?? true);
 
 export type ConnState = 'off' | 'connecting' | 'on' | 'error';
 
@@ -53,6 +65,10 @@ interface State {
   /** Opens (or focuses) a table tab. With `filter`, the tab shows only the matching rows. */
   openTable(connId: string, db: string, table: string, isView?: boolean, filter?: string): void;
   openQuery(connId?: string, db?: string, sql?: string): void;
+  /** Opens a saved query, or focuses the tab that already has it. */
+  openSnippet(s: Snippet): void;
+  /** Opens (or focuses) the ER diagram of a database. */
+  openEr(connId: string, db: string): void;
   closeTab(id: string): void;
   closeOthers(id: string): void;
   closeRight(id: string): void;
@@ -109,7 +125,7 @@ export const useApp = create<State>((set, get) => ({
   },
 
   restoreTabs(saved, active) {
-    const tabs: Tab[] = saved.map((t) => ({ ...t, id: uid(t.kind === 'table' ? 't' : 'q') }));
+    const tabs: Tab[] = saved.map((t) => ({ ...t, id: uid(t.kind === 'table' ? 't' : t.kind === 'er' ? 'e' : 'q') }));
     if (!tabs.length) return set({ tabs: [welcome], active: 'welcome' });
     set({ tabs, active: tabs[Math.min(Math.max(active, 0), tabs.length - 1)].id });
   },
@@ -163,7 +179,24 @@ export const useApp = create<State>((set, get) => ({
     set((s) => ({ tabs: [...s.tabs.filter((t) => t.kind !== 'welcome'), tab], active: tab.id }));
   },
 
+  openSnippet(sn) {
+    const existing = get().tabs.find((t) => t.kind === 'query' && t.snippetId === sn.id);
+    if (existing) return set({ active: existing.id });
+    const known = !!sn.connId && get().connections.some((c) => c.id === sn.connId);
+    const c = known ? sn.connId : (get().connections.find((x) => get().connState[x.id] === 'on')?.id ?? get().connections[0]?.id);
+    const tab: Tab = { id: uid('q'), kind: 'query', title: sn.name, connId: c, db: known ? sn.db : get().connections.find((x) => x.id === c)?.database, sql: sn.sql, snippetId: sn.id };
+    set((s) => ({ tabs: [...s.tabs.filter((t) => t.kind !== 'welcome'), tab], active: tab.id }));
+  },
+
+  openEr(connId, db) {
+    const existing = get().tabs.find((t) => t.kind === 'er' && t.connId === connId && t.db === db);
+    if (existing) return set({ active: existing.id });
+    const tab: Tab = { id: uid('e'), kind: 'er', title: `${db} · ER`, connId, db };
+    set((s) => ({ tabs: [...s.tabs.filter((t) => t.kind !== 'welcome'), tab], active: tab.id }));
+  },
+
   closeTab(id) {
+    if (!mayClose([id])) return;
     set((s) => {
       const i = s.tabs.findIndex((t) => t.id === id);
       const tabs = s.tabs.filter((t) => t.id !== id);
@@ -174,10 +207,13 @@ export const useApp = create<State>((set, get) => ({
   },
 
   closeOthers(id) {
+    if (!mayClose(get().tabs.filter((t) => t.id !== id).map((t) => t.id))) return;
     set((s) => ({ tabs: s.tabs.filter((t) => t.id === id), active: id }));
   },
 
   closeRight(id) {
+    const i = get().tabs.findIndex((t) => t.id === id);
+    if (!mayClose(get().tabs.slice(i + 1).map((t) => t.id))) return;
     set((s) => {
       const i = s.tabs.findIndex((t) => t.id === id);
       const tabs = s.tabs.slice(0, i + 1);
@@ -186,6 +222,7 @@ export const useApp = create<State>((set, get) => ({
   },
 
   closeAll() {
+    if (!mayClose(get().tabs.map((t) => t.id))) return;
     set({ tabs: [welcome], active: 'welcome' });
   },
 
