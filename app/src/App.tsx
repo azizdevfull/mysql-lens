@@ -15,6 +15,7 @@ import { AskDialog } from '@/components/AskDialog';
 import { DumpDialog } from '@/components/DumpDialog';
 import { ImportWizard } from '@/components/ImportWizard';
 import { HistoryDialog, openHistory } from '@/components/HistoryDialog';
+import { ValueEditor } from '@/components/ValueEditor';
 import { TableView } from '@/views/TableView';
 import { QueryView, colorOf } from '@/views/QueryView';
 import { liveSql } from '@/lib/store';
@@ -227,6 +228,7 @@ export default function App() {
       <DumpDialog />
       <ImportWizard />
       <HistoryDialog />
+      <ValueEditor />
       <Toaster theme={theme} position="bottom-right" richColors closeButton toastOptions={{ className: 'font-sans' }} />
     </TooltipProvider>
   );
