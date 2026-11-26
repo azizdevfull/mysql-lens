@@ -10,6 +10,8 @@ export interface Column {
   defaultValue?: string | null;
   options?: string[];
   comment?: string;
+  /** Binary column (BLOB, BINARY, BIT): values arrive as `0x…` hex. */
+  binary?: boolean;
 }
 
 export interface Connection {
@@ -69,6 +71,40 @@ export interface ResultSet {
   ms: number;
 }
 
+/** `columns` of `db.table` point at `refColumns` of `refDb.refTable`. */
+export interface ForeignKey {
+  name: string;
+  db: string;
+  table: string;
+  columns: string[];
+  refDb: string;
+  refTable: string;
+  refColumns: string[];
+}
+
+/** Foreign keys a table declares (outgoing) and the ones pointing at it (incoming). */
+export interface Relations {
+  outgoing: ForeignKey[];
+  incoming: ForeignKey[];
+}
+
+export interface CountRequest {
+  db: string;
+  table: string;
+  /** A SQL condition, as in the table filter. */
+  filter: string;
+}
+
+/** Identifies one stored cell, so its full value can be read again. */
+export interface CellRef {
+  connId: string;
+  db: string;
+  table: string;
+  column: string;
+  columns: Column[];
+  key: Record<string, Cell>;
+}
+
 export type RowChange =
   | { kind: 'update'; key: Record<string, Cell>; values: Record<string, Cell> }
   | { kind: 'insert'; values: Record<string, Cell> }
@@ -97,6 +133,15 @@ export interface Backend {
   columns(id: string, db: string, table: string): Promise<Column[]>;
   schema(id: string, db: string): Promise<Record<string, Column[]>>;
   tablePage(id: string, db: string, table: string, req: PageRequest): Promise<TablePage>;
+  foreignKeys(id: string, db: string, table: string): Promise<Relations>;
+  /** Rows matching each request, counted up to `cap`; null where the count failed. */
+  countRows(id: string, items: CountRequest[], cap: number): Promise<(number | null)[]>;
+  /** The full bytes of one cell as base64. */
+  cellBytes(ref: CellRef): Promise<string>;
+  /** Asks where to save and writes one cell's bytes there. Null if cancelled. */
+  saveCell(ref: CellRef, suggestedName: string): Promise<{ bytes: number; path: string } | null>;
+  /** Asks for a file and returns its contents as a `0x…` hex literal. Null if cancelled. */
+  loadFileHex(): Promise<string | null>;
   /**
    * Runs SQL. A string is split into statements by the backend; an array is run
    * statement by statement as given. With `runId`, `cancelQuery(runId)` stops it.

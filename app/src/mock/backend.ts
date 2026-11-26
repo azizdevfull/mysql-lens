@@ -1,4 +1,4 @@
-import type { Backend, Cell, Column, Connection, DbObjects, HistoryEntry, ResultSet, RowChange, TableMeta } from '@/lib/types';
+import type { Backend, Cell, Column, Connection, DbObjects, ForeignKey, HistoryEntry, ResultSet, RowChange, TableMeta } from '@/lib/types';
 
 /* An in-memory fake server so the UI can be designed and tested without MySQL. */
 
@@ -19,6 +19,9 @@ const dt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.get
 const FIRST = ['Aziz', 'Dilnoza', 'Javlon', 'Malika', 'Sardor', 'Nodira', 'Bekzod', 'Gulnora', 'Olivia', 'Liam', 'Emma', 'Noah', 'Sofia', 'Lucas'];
 const LAST = ['Karimov', 'Rahimova', 'Yusupov', 'Aliyeva', 'Smith', 'Johnson', 'Brown', 'Garcia', 'Miller', 'Davis'];
 const CITIES = ['Tashkent', 'Samarkand', 'Bukhara', 'Andijan', 'Namangan', 'London', 'Berlin', 'Dubai'];
+/** A 24×24 gradient PNG, so the value editor's image preview can be tried in the demo. */
+const PNG_HEX = '0x89504E470D0A1A0A0000000D4948445200000018000000180806000000E0773DF8000002AB4944415478DA15CD210F904A0000607F8EF145229148245E2412AFB8318B04C3591C9BE58A1BB3483060716C962B6ECCE2050316CBFB11EF7D842F7F2F5EC6DFFFFD43434B47CF4060642232B39058C96CEC1C9C142E2A372F5EBE12D0D0D2D13310189988CC2C2456321B3B0727858BCAFDEA095E0B6868E9E819088C4C446616122B998D9D8393C245E57EFD046F0434B474F40C04462622330B8995CCC6CEC149E1A272BF7982B7021A5A3A7A06022313919985C44A6663E7E0A47051B9DF3EC13B010D2D1D3D03819189C8CC426225B3B1737052B8A8DCEF9EE0BD8086968E9E81C0C844646621B192D9D83938295C54EEF74FF04140434B47CF4060642232B39058C96CEC1C9C142E2AF78727C8021A5A3A7A06022313919985C44A6663E7E0A47051B9F3137C14D0D0D2D13310189988CC2C2456321B3B0727858BCAFDF1093E096868E9E819088C4C446616122B998D9D8393C245E5FEF4049F0534B474F40C04462622330B8995CCC6CEC149E1A2727F7E822F021A5A3A7A06022313919985C44A6663E7E0A47051B9BF3CC157010D2D1D3D03819189C8CC426225B3B1737052B8A8DC5F9FE09B8086968E9E81C0C844646621B192D9D83938295C54EE6F4FF05D40434B47CF4060642232B39058C96CEC1C9C142E2AF7F72728021A5A3A7A06022313919985C44A6663E7E0A47051B9CB13FC10D0D0D2D13310189988CC2C2456321B3B0727858BCAFDE3097E0A6868E9E819088C4C446616122B998D9D8393C245E5FEF904BF0434B474F40C04462622330B8995CCC6CEC149E1A272FF7A82DF021A5A3A7A06022313919985C44A6663E7E0A47051B97F3FC11F010D2D1D3D03819189C8CC426225B3B1737052B8A8DC7F9EE0AF8086968E9E81C0C844646621B192D9D83938295C54EEBF4FF0AF8086968E9E81C0C844646621B192D9D83938295C546EFE071618E57B9DA1254D0000000049454E44AE426082';
+
 const PRODUCTS = ['Espresso', 'Latte', 'Cappuccino', 'Green Tea', 'Croissant', 'Cheesecake', 'Orange Juice', 'Water', 'Bagel', 'Muffin', 'Mocha', 'Americano'];
 
 function makeDb(): Record<string, FakeTable> {
@@ -28,7 +31,7 @@ function makeDb(): Record<string, FakeTable> {
     const l = pick(LAST);
     return [i + 1, `${f} ${l}`, rnd() < 0.08 ? null : `${f.toLowerCase()}.${l.toLowerCase()}${i}@example.com`, pick(CITIES), (rnd() * 4000).toFixed(2), pick(['active', 'active', 'active', 'blocked', 'pending']), rnd() < 0.7 ? 1 : 0, dt(new Date(now - rnd() * 4e10))];
   });
-  const products: Cell[][] = PRODUCTS.map((p, i) => [i + 1, p, `SKU-${1000 + i}`, (2 + rnd() * 8).toFixed(2), Math.floor(rnd() * 500), rnd() < 0.3 ? JSON.stringify({ vegan: rnd() < 0.5, sizes: ['S', 'M', 'L'] }) : null]);
+  const products: Cell[][] = PRODUCTS.map((p, i) => [i + 1, p, `SKU-${1000 + i}`, (2 + rnd() * 8).toFixed(2), Math.floor(rnd() * 500), rnd() < 0.3 ? JSON.stringify({ vegan: rnd() < 0.5, sizes: ['S', 'M', 'L'] }) : null, i % 2 ? null : PNG_HEX]);
   const orders: Cell[][] = Array.from({ length: 8650 }, (_, i) => [i + 1, Math.floor(rnd() * 1240) + 1, (5 + rnd() * 120).toFixed(2), pick(['new', 'paid', 'shipped', 'delivered', 'cancelled']), rnd() < 0.15 ? 'Leave at the door' : null, dt(new Date(now - rnd() * 2e10))]);
   return {
     customers: {
@@ -66,6 +69,7 @@ function makeDb(): Record<string, FakeTable> {
         { name: 'price', type: 'decimal(8,2)', numeric: true, nullable: false },
         { name: 'stock', type: 'int', numeric: true, nullable: false },
         { name: 'attributes', type: 'json', nullable: true },
+        { name: 'photo', type: 'mediumblob', binary: true, nullable: true },
       ],
       rows: products,
     },
@@ -138,6 +142,16 @@ function matcher(cols: Column[], where: string): (r: Cell[]) => boolean {
     };
   });
   return (r) => tests.every((t) => t(r));
+}
+
+/** The demo's foreign keys: every order belongs to a customer. */
+const FOREIGN_KEYS: ForeignKey[] = [{ name: 'fk_orders_customer', db: 'shop_db', table: 'orders', columns: ['customer_id'], refDb: 'shop_db', refTable: 'customers', refColumns: ['id'] }];
+
+function hexToBase64(hex: string): string {
+  const body = hex.replace(/^0x/i, '');
+  let bin = '';
+  for (let i = 0; i < body.length; i += 2) bin += String.fromCharCode(parseInt(body.slice(i, i + 2), 16));
+  return btoa(bin);
 }
 
 let history: HistoryEntry[] = [];
@@ -226,6 +240,38 @@ export const mockBackend: Backend = {
       keyColumns: t.kind === 'table' ? t.columns.filter((c) => c.pk).map((c) => c.name) : [],
       ms: Math.round(performance.now() - started),
     };
+  },
+  async foreignKeys(_id, name, table) {
+    await delay(30);
+    return { outgoing: FOREIGN_KEYS.filter((f) => f.db === name && f.table === table), incoming: FOREIGN_KEYS.filter((f) => f.refDb === name && f.refTable === table) };
+  },
+  async countRows(id, items, cap) {
+    await delay(40);
+    return items.map((it) => {
+      try {
+        const t = db(id, it.db)[it.table];
+        return Math.min(cap, t.rows.filter(matcher(t.columns, it.filter)).length);
+      } catch {
+        return null;
+      }
+    });
+  },
+  async cellBytes(r) {
+    await delay(40);
+    const t = db(r.connId, r.db)[r.table];
+    const ci = t.columns.findIndex((c) => c.name === r.column);
+    const row = t.rows.find((x) => Object.entries(r.key).every(([k, v]) => x[t.columns.findIndex((c) => c.name === k)] == v));
+    if (!row) throw new Error('Row was not found. Reload and try again.');
+    const v = row[ci];
+    return typeof v === 'string' && /^0x[0-9a-f]*$/i.test(v) ? hexToBase64(v) : btoa(unescape(encodeURIComponent(String(v ?? ''))));
+  },
+  async saveCell(r, suggestedName) {
+    const b64 = await this.cellBytes(r);
+    return { bytes: Math.floor((b64.length * 3) / 4), path: `C:\\Users\\you\\Downloads\\${suggestedName}` };
+  },
+  async loadFileHex() {
+    await delay(100);
+    return PNG_HEX;
   },
   async query(id, name, input, runId) {
     const out: ResultSet[] = [];

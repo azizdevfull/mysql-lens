@@ -27,6 +27,20 @@ export const tauriBackend: Backend = {
   columns: (id, db, table) => invoke('columns', { id, db, table }),
   schema: (id, db) => invoke('schema', { id, db }),
   tablePage: (id, db, table, req) => invoke('table_page', { id, db, table, req }),
+  foreignKeys: (id, db, table) => invoke('foreign_keys', { id, db, table }),
+  countRows: (id, items, cap) => invoke('count_rows', { id, items, cap }),
+  cellBytes: (r) => invoke('cell_bytes', { id: r.connId, db: r.db, table: r.table, column: r.column, columns: r.columns, key: r.key }),
+  async saveCell(r, suggestedName) {
+    const path = await save({ defaultPath: suggestedName });
+    if (!path) return null;
+    const bytes = await invoke<number>('save_cell', { id: r.connId, db: r.db, table: r.table, column: r.column, columns: r.columns, key: r.key, path });
+    return { bytes, path };
+  },
+  async loadFileHex() {
+    const path = await open({ multiple: false });
+    if (!path || Array.isArray(path)) return null;
+    return invoke<string>('file_hex', { path });
+  },
   query: (id, db, sql, runId) =>
     Array.isArray(sql) ? invoke('query', { id, db: db ?? null, sql: '', statements: sql, runId: runId ?? null }) : invoke('query', { id, db: db ?? null, sql, runId: runId ?? null }),
   cancelQuery: (runId) => invoke('cancel_query', { runId }),
