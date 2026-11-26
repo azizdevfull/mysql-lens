@@ -89,3 +89,24 @@ jobs:
             - Export to CSV, Excel, JSON, SQL, Markdown
 
             The installer is not code-signed yet, so Windows SmartScreen / Smart App Control may warn.
+
+  # Sends the new version to the Windows Package Manager (winget) as a PR to
+  # microsoft/winget-pkgs. Needs the WINGET_TOKEN secret: a classic token with
+  # the public_repo scope of the account that owns the winget-pkgs fork.
+  winget:
+    needs: windows
+    if: startsWith(github.ref, 'refs/tags/app-v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Version from tag
+        id: v
+        run: echo "version=${GITHUB_REF_NAME#app-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Submit to winget
+        uses: vedantmgoyal9/winget-releaser@b7370d4d152efdce803a26cc6ca9eee58cb2ad54 # v2
+        with:
+          identifier: Azizdevfull.MySQLLens
+          version: ${{ steps.v.outputs.version }}
+          installers-regex: '_x64-setup\.exe$'
+          release-tag: ${{ github.ref_name }}
+          token: ${{ secrets.WINGET_TOKEN }}
