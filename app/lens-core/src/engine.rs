@@ -496,12 +496,16 @@ impl Engine {
 
     /* ----------------------------- edits ----------------------------- */
 
+    /// `a = 1 AND b IS NULL` for a row key.
+    fn key_where(cols: &[Column], key: &serde_json::Map<String, Cell>) -> String {
+        let col = |name: &str| cols.iter().find(|c| c.name == name);
+        key.iter().map(|(k, v)| if v.is_null() { format!("{} IS NULL", qid(k)) } else { format!("{} = {}", qid(k), cell_literal(v, col(k))) }).collect::<Vec<_>>().join(" AND ")
+    }
+
     fn change_sql(db: &str, table: &str, cols: &[Column], c: &RowChange) -> String {
         let t = qualified(db, table);
         let col = |name: &str| cols.iter().find(|c| c.name == name);
-        let wh = |key: &serde_json::Map<String, Cell>| {
-            key.iter().map(|(k, v)| if v.is_null() { format!("{} IS NULL", qid(k)) } else { format!("{} = {}", qid(k), cell_literal(v, col(k))) }).collect::<Vec<_>>().join(" AND ")
-        };
+        let wh = |key: &serde_json::Map<String, Cell>| Self::key_where(cols, key);
         match c {
             RowChange::Update { key, values } => format!(
                 "UPDATE {t} SET {} WHERE {} LIMIT 1;",
@@ -605,4 +609,18 @@ fn _futures_are_send(e: &Engine) {
     send(e.import_data("", "", p, todo!(), todo!(), |_| true));
     send(e.test_connection(todo!(), None));
     send(e.save_connection(todo!(), None));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn key_where_quotes_and_handles_null() {
+        let cols = vec![Column { name: "id".into(), numeric: Some(true), ..Default::default() }, Column { name: "code".into(), ..Default::default() }];
+        let mut key = serde_json::Map::new();
+        key.insert("id".into(), J::from(7));
+        key.insert("code".into(), J::Null);
+        assert_eq!(Engine::key_where(&cols, &key), "`code` IS NULL AND `id` = 7");
+    }
 }
