@@ -12,8 +12,20 @@ import DataEditor, {
   type Theme,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
+import { Copy } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Cell, Column } from '@/lib/types';
 import { useApp } from '@/lib/store';
+import { binarySummary, isBinaryColumn, isJsonColumn } from '@/lib/relations';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/menu';
+
+/** An entry of the grid's right-click menu. */
+export interface GridMenuItem {
+  label: string;
+  icon?: React.ReactNode;
+  shortcut?: string;
+  onSelect: () => void;
+}
 
 export interface DataGridProps {
   columns: Column[];
@@ -30,6 +42,14 @@ export interface DataGridProps {
   onSort?: (column: string) => void;
   /** Changes whenever the underlying data is replaced, to reset widths/selection. */
   dataKey?: string;
+  /** For foreign key columns, where they point (shown on header hover); their cells look like links. */
+  linkOf?: (col: number) => string | undefined;
+  /** Ctrl+click on a link cell. */
+  onFollowLink?: (row: number, col: number) => void;
+  /** Opens the value editor; JSON and binary cells open it instead of the inline editor. */
+  onOpenValue?: (row: number, col: number) => void;
+  /** Extra right-click menu entries for a cell (Copy value is always there). */
+  menuItems?: (row: number, col: number) => GridMenuItem[];
 }
 
 /** Converts any CSS color (oklch, var(...)) to rgb(), which Glide can parse and blend. */
@@ -114,6 +134,9 @@ export function DataGrid(p: DataGridProps) {
   const [widths, setWidths] = useState<Record<string, number>>({});
   const [selection, setSelection] = useState<GridSelection>({ columns: CompactSelection.empty(), rows: CompactSelection.empty() });
   const [showSearch, setShowSearch] = useState(false);
+  const [headerHint, setHeaderHint] = useState<string>();
+  const [menu, setMenu] = useState<{ x: number; y: number; row: number; col: number }>();
+  const pointer = useRef({ x: 0, y: 0 });
 
   // Initial column widths from a sample of the data.
   useEffect(() => {
@@ -133,15 +156,15 @@ export function DataGrid(p: DataGridProps) {
 
   const gridColumns = useMemo<GridColumn[]>(
     () =>
-      p.columns.map((c) => ({
+      p.columns.map((c, ci) => ({
         id: c.name,
         title: c.name + (p.sort?.column === c.name ? (p.sort.dir === 'asc' ? '  ↑' : '  ↓') : ''),
         width: widths[c.name] ?? 140,
-        icon: iconFor(c),
+        icon: p.linkOf?.(ci) ? GridColumnIcon.HeaderReference : iconFor(c),
         hasMenu: false,
-        themeOverride: c.pk ? { bgIconHeader: '#d4a017' } : undefined,
+        themeOverride: c.pk ? { bgIconHeader: '#d4a017' } : p.linkOf?.(ci) ? { bgIconHeader: theme.linkColor } : undefined,
       })),
-    [p.columns, widths, p.sort],
+    [p.columns, widths, p.sort, p.linkOf, theme.linkColor],
   );
 
   const getCellContent = useCallback(
@@ -151,14 +174,17 @@ export function DataGrid(p: DataGridProps) {
       const state = p.rowState?.(row);
       const modified = p.isModified?.(row, col);
       const readonly = !p.editable || state === 'deleted';
-      const themeOverride = modified ? { bgCell: 'rgba(234, 179, 8, 0.18)' } : undefined;
+      const link = !!p.linkOf?.(col);
+      const themeOverride = modified || link ? { ...(modified ? { bgCell: 'rgba(234, 179, 8, 0.18)' } : {}), ...(link ? { textDark: theme.linkColor } : {}) } : undefined;
+      // JSON and binary values open the value editor instead of the small inline one.
+      const rich = !!p.onOpenValue && (isJsonColumn(c) || isBinaryColumn(c));
       if (v === null) {
         const isNewDefault = state === 'new' && !modified;
         return {
           kind: GridCellKind.Text,
           data: '',
           displayData: isNewDefault ? (c.autoIncrement ? 'auto' : c.defaultValue != null ? 'default' : 'NULL') : 'NULL',
-          allowOverlay: true,
+          allowOverlay: !rich,
           readonly,
           themeOverride: { ...themeOverride, textDark: theme.textLight },
         };
@@ -167,17 +193,18 @@ export function DataGrid(p: DataGridProps) {
         return { kind: GridCellKind.Boolean, data: Number(v) === 1, allowOverlay: false, readonly, themeOverride };
       }
       const s = String(v);
+      const summary = isBinaryColumn(c) ? binarySummary(v) : null;
       return {
         kind: GridCellKind.Text,
         data: s,
-        displayData: s.length > 300 ? s.slice(0, 300) + '…' : s.replace(/\r?\n/g, ' ↵ '),
-        allowOverlay: true,
+        displayData: summary ?? (s.length > 300 ? s.slice(0, 300) + '…' : s.replace(/\r?\n/g, ' ↵ ')),
+        allowOverlay: !rich,
         readonly,
         contentAlign: c.numeric ? 'right' : undefined,
         themeOverride,
       };
     },
-    [p, theme.textLight],
+    [p, theme.textLight, theme.linkColor],
   );
 
   const onCellEdited = useCallback(
@@ -217,13 +244,27 @@ export function DataGrid(p: DataGridProps) {
     [p],
   );
 
+  const copyCell = (row: number, col: number) => {
+    const v = p.value(row, col);
+    void navigator.clipboard.writeText(v === null ? 'NULL' : String(v)).then(() => toast.success('Value copied'));
+  };
+  const extraItems = menu ? (p.menuItems?.(menu.row, menu.col) ?? []) : [];
+
   return (
-    <div className="relative h-full w-full" onKeyDown={(e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
-        e.preventDefault();
-        setShowSearch(true);
-      }
-    }}>
+    <div
+      className="relative h-full w-full"
+      title={headerHint}
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+          e.preventDefault();
+          setShowSearch(true);
+        }
+      }}
+      onContextMenuCapture={(e) => {
+        pointer.current = { x: e.clientX, y: e.clientY };
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <DataEditor
         ref={ref}
         theme={theme}
@@ -250,6 +291,22 @@ export function DataGrid(p: DataGridProps) {
         }}
         onColumnResize={(c, w) => setWidths((x) => ({ ...x, [c.id as string]: w }))}
         onHeaderClicked={(col) => p.onSort?.(p.columns[col].name)}
+        onItemHovered={(a) => setHeaderHint(a.kind === 'header' && a.location[0] >= 0 ? (p.linkOf?.(a.location[0]) ? `→ ${p.linkOf(a.location[0])} · Ctrl+click a value to open it` : undefined) : undefined)}
+        onCellClicked={([col, row], e) => {
+          if ((e.ctrlKey || e.metaKey) && p.linkOf?.(col) && p.onFollowLink) {
+            e.preventDefault();
+            p.onFollowLink(row, col);
+          }
+        }}
+        onCellActivated={([col, row]) => {
+          const c = p.columns[col];
+          if (p.onOpenValue && c && (isJsonColumn(c) || isBinaryColumn(c))) p.onOpenValue(row, col);
+        }}
+        onCellContextMenu={([col, row], e) => {
+          e.preventDefault();
+          if (row < 0 || col < 0) return;
+          setMenu({ ...pointer.current, row, col });
+        }}
         getRowThemeOverride={getRowThemeOverride}
         trailingRowOptions={p.editable && p.onAppendRow ? { hint: 'New row', sticky: true, tint: true } : undefined}
         onRowAppended={p.editable && p.onAppendRow ? () => p.onAppendRow!() : undefined}
@@ -259,6 +316,28 @@ export function DataGrid(p: DataGridProps) {
         keybindings={{ search: true, selectAll: true, copy: true, paste: true, clear: true, downFill: true, rightFill: true }}
         scaleToRem={false}
       />
+      <DropdownMenu open={!!menu} onOpenChange={(o) => !o && setMenu(undefined)} modal={false}>
+        <DropdownMenuTrigger asChild>
+          <span className="pointer-events-none fixed size-0" style={{ left: menu?.x ?? 0, top: menu?.y ?? 0 }} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" side="bottom" sideOffset={2} className="min-w-56" onCloseAutoFocus={(e) => e.preventDefault()}>
+          {menu && (
+            <>
+              {extraItems.map((it) => (
+                <DropdownMenuItem key={it.label} onSelect={it.onSelect} shortcut={it.shortcut}>
+                  {it.icon}
+                  {it.label}
+                </DropdownMenuItem>
+              ))}
+              {extraItems.length > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuItem onSelect={() => copyCell(menu.row, menu.col)} shortcut="Ctrl C">
+                <Copy />
+                Copy value
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
