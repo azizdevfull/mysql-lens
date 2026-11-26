@@ -146,7 +146,17 @@ export interface Backend {
    * Runs SQL. A string is split into statements by the backend; an array is run
    * statement by statement as given. With `runId`, `cancelQuery(runId)` stops it.
    */
-  query(id: string, db: string | undefined, sql: string | string[], runId?: string): Promise<ResultSet[]>;
+  query(id: string, db: string | undefined, sql: string | string[], runId?: string, tx?: string): Promise<ResultSet[]>;
+  /** Commits (or rolls back) the manual-commit transaction `tx` started by `query(..., tx)`. */
+  txEnd(id: string, tx: string, commit: boolean): Promise<void>;
+  /** Closes the manual-commit connection of `tx`, rolling back what was not committed. */
+  txClose(tx: string): Promise<void>;
+  /** Every foreign key declared in `db` (for the ER diagram). */
+  dbForeignKeys(id: string, db: string): Promise<ForeignKey[]>;
+  snippetsList(): Promise<Snippet[]>;
+  /** Adds a snippet (empty id) or replaces the one with its id. */
+  snippetsSave(s: Snippet): Promise<Snippet>;
+  snippetsDelete(id: string): Promise<void>;
   /** Kills the statement running for `runId` and skips the rest. False if it already finished. */
   cancelQuery(runId: string): Promise<boolean>;
   previewChanges(id: string, db: string, table: string, columns: Column[], changes: RowChange[]): Promise<string[]>;
@@ -172,6 +182,18 @@ export interface Backend {
   exportConnections(): Promise<{ count: number; path: string } | null>;
   /** Asks for an export file and adds its connections. Null if cancelled. */
   importConnections(): Promise<{ added: number; skipped: number } | null>;
+}
+
+/** A saved query. */
+export interface Snippet {
+  id: string;
+  name: string;
+  sql: string;
+  connId?: string;
+  db?: string;
+  /** Unix time in milliseconds. */
+  created: number;
+  updated: number;
 }
 
 export interface HistoryEntry {

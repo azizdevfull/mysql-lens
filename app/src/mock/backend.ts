@@ -1,4 +1,4 @@
-import type { Backend, Cell, Column, Connection, DbObjects, ForeignKey, HistoryEntry, ResultSet, RowChange, TableMeta } from '@/lib/types';
+import type { Backend, Cell, Column, Connection, DbObjects, ForeignKey, HistoryEntry, ResultSet, RowChange, Snippet, TableMeta } from '@/lib/types';
 
 /* An in-memory fake server so the UI can be designed and tested without MySQL. */
 
@@ -73,6 +73,37 @@ function makeDb(): Record<string, FakeTable> {
       ],
       rows: products,
     },
+    order_items: {
+      kind: 'table',
+      columns: [
+        { name: 'id', type: 'bigint unsigned', pk: true, autoIncrement: true, numeric: true, nullable: false },
+        { name: 'order_id', type: 'bigint unsigned', numeric: true, nullable: false },
+        { name: 'product_id', type: 'int', numeric: true, nullable: false },
+        { name: 'qty', type: 'smallint', numeric: true, nullable: false, defaultValue: '1' },
+        { name: 'price', type: 'decimal(8,2)', numeric: true, nullable: false },
+      ],
+      rows: Array.from({ length: 400 }, (_, i) => [i + 1, (i % 200) + 1, (i % PRODUCTS.length) + 1, 1 + (i % 3), (2 + (i % 8)).toFixed(2)]),
+    },
+    addresses: {
+      kind: 'table',
+      columns: [
+        { name: 'id', type: 'int unsigned', pk: true, autoIncrement: true, numeric: true, nullable: false },
+        { name: 'customer_id', type: 'int unsigned', numeric: true, nullable: false },
+        { name: 'city', type: 'varchar(60)', nullable: false },
+        { name: 'street', type: 'varchar(120)', nullable: false },
+        { name: 'is_default', type: 'tinyint(1)', numeric: true, nullable: false, defaultValue: '0' },
+      ],
+      rows: Array.from({ length: 300 }, (_, i) => [i + 1, (i % 1240) + 1, CITIES[i % CITIES.length], `${10 + i} Amir Temur St`, i % 2]),
+    },
+    staff: {
+      kind: 'table',
+      columns: [
+        { name: 'id', type: 'int unsigned', pk: true, autoIncrement: true, numeric: true, nullable: false },
+        { name: 'full_name', type: 'varchar(120)', nullable: false },
+        { name: 'manager_id', type: 'int unsigned', numeric: true, nullable: true },
+      ],
+      rows: Array.from({ length: 12 }, (_, i) => [i + 1, `${FIRST[i % FIRST.length]} ${LAST[i % LAST.length]}`, i === 0 ? null : Math.floor(i / 3) + 1]),
+    },
     active_customers: {
       kind: 'view',
       columns: [
@@ -145,7 +176,31 @@ function matcher(cols: Column[], where: string): (r: Cell[]) => boolean {
 }
 
 /** The demo's foreign keys: every order belongs to a customer. */
-const FOREIGN_KEYS: ForeignKey[] = [{ name: 'fk_orders_customer', db: 'shop_db', table: 'orders', columns: ['customer_id'], refDb: 'shop_db', refTable: 'customers', refColumns: ['id'] }];
+const fk = (name: string, table: string, column: string, refTable: string): ForeignKey => ({ name, db: 'shop_db', table, columns: [column], refDb: 'shop_db', refTable, refColumns: ['id'] });
+const FOREIGN_KEYS: ForeignKey[] = [
+  fk('fk_orders_customer', 'orders', 'customer_id', 'customers'),
+  fk('fk_items_order', 'order_items', 'order_id', 'orders'),
+  fk('fk_items_product', 'order_items', 'product_id', 'products'),
+  fk('fk_addresses_customer', 'addresses', 'customer_id', 'customers'),
+  fk('fk_staff_manager', 'staff', 'manager_id', 'staff'),
+];
+
+/** Saved queries of the demo, kept in the browser. */
+function loadSnippets(): Snippet[] {
+  try {
+    return JSON.parse(localStorage.getItem('demo-snippets') ?? '[]') as Snippet[];
+  } catch {
+    return [];
+  }
+}
+function storeSnippets(list: Snippet[]) {
+  try {
+    localStorage.setItem('demo-snippets', JSON.stringify(list));
+  } catch {
+    // ignore: the demo keeps them for this page only
+  }
+}
+let snippets: Snippet[] = loadSnippets();
 
 function hexToBase64(hex: string): string {
   const body = hex.replace(/^0x/i, '');
@@ -244,6 +299,31 @@ export const mockBackend: Backend = {
   async foreignKeys(_id, name, table) {
     await delay(30);
     return { outgoing: FOREIGN_KEYS.filter((f) => f.db === name && f.table === table), incoming: FOREIGN_KEYS.filter((f) => f.refDb === name && f.refTable === table) };
+  },
+  async dbForeignKeys(_id, name) {
+    await delay(40);
+    return FOREIGN_KEYS.filter((f) => f.db === name);
+  },
+  async txEnd() {
+    await delay(60);
+  },
+  async txClose() {},
+  async snippetsList() {
+    return [...snippets].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  },
+  async snippetsSave(s) {
+    const name = s.name.trim();
+    if (!name) throw new Error('A saved query needs a name.');
+    const now = Date.now();
+    const old = snippets.find((x) => s.id && x.id === s.id);
+    const saved: Snippet = old ? { ...s, name, created: old.created, updated: now } : { ...s, name, id: `s${now}`, created: now, updated: now };
+    snippets = old ? snippets.map((x) => (x.id === saved.id ? saved : x)) : [...snippets, saved];
+    storeSnippets(snippets);
+    return saved;
+  },
+  async snippetsDelete(sid) {
+    snippets = snippets.filter((x) => x.id !== sid);
+    storeSnippets(snippets);
   },
   async countRows(id, items, cap) {
     await delay(40);

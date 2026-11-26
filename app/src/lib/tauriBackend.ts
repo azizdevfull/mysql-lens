@@ -41,8 +41,16 @@ export const tauriBackend: Backend = {
     if (!path || Array.isArray(path)) return null;
     return invoke<string>('file_hex', { path });
   },
-  query: (id, db, sql, runId) =>
-    Array.isArray(sql) ? invoke('query', { id, db: db ?? null, sql: '', statements: sql, runId: runId ?? null }) : invoke('query', { id, db: db ?? null, sql, runId: runId ?? null }),
+  query: (id, db, sql, runId, tx) =>
+    Array.isArray(sql)
+      ? invoke('query', { id, db: db ?? null, sql: '', statements: sql, runId: runId ?? null, tx: tx ?? null })
+      : invoke('query', { id, db: db ?? null, sql, runId: runId ?? null, tx: tx ?? null }),
+  txEnd: (id, tx, commit) => invoke('tx_end', { id, tx, commit }),
+  txClose: (tx) => invoke('tx_close', { tx }),
+  dbForeignKeys: (id, db) => invoke('db_foreign_keys', { id, db }),
+  snippetsList: () => invoke('snippets_list'),
+  snippetsSave: (snippet) => invoke('snippets_save', { snippet }),
+  snippetsDelete: (id) => invoke('snippets_delete', { id }),
   cancelQuery: (runId) => invoke('cancel_query', { runId }),
   previewChanges: (_id, db, table, columns, changes) => invoke('preview_changes', { db, table, columns, changes }),
   applyChanges: (id, db, table, columns, changes) => invoke('apply_changes', { id, db, table, columns, changes }),
