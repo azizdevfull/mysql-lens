@@ -43,6 +43,8 @@ function Section({ icon, title, desc, on, onToggle, children }: { icon: React.Re
 export function ConnectionDialog() {
   const { open, editing } = useApp((s) => s.connDialog);
   const close = useApp((s) => s.closeConnDialog);
+  const connections = useApp((s) => s.connections);
+  const folders = [...new Set(connections.map((x) => x.folder).filter((f): f is string => !!f))].sort((a, b) => a.localeCompare(b));
   const [c, setC] = useState<Connection>(blank);
   const [password, setPassword] = useState('');
   const [sshSecret, setSshSecret] = useState('');
@@ -86,7 +88,7 @@ export function ConnectionDialog() {
 
   const save = async (connect: boolean) => {
     const saved = await backend.saveConnection(
-      { ...c, id: c.id || (backend.native ? '' : `c-${Date.now()}`), name: c.name.trim() || `${c.user}@${c.host}` },
+      { ...c, id: c.id || (backend.native || backend.web ? '' : `c-${Date.now()}`), name: c.name.trim() || `${c.user}@${c.host}` },
       { password, sshPassword: c.ssh?.auth === 'password' ? sshSecret : undefined, sshPassphrase: c.ssh?.auth === 'key' ? sshSecret : undefined },
     );
     await useApp.getState().load();
@@ -156,8 +158,16 @@ export function ConnectionDialog() {
                 </button>
               </div>
             </Field>
-            <Field label="Default database" className="col-span-6" hint="Optional. All databases stay visible in the explorer.">
+            <Field label="Default database" className="col-span-3" hint="Optional. All databases stay visible.">
               <Input value={c.database ?? ''} onChange={(e) => set('database', e.target.value)} placeholder="optional" />
+            </Field>
+            <Field label="Folder" className="col-span-3" hint="Groups connections in the explorer.">
+              <Input value={c.folder ?? ''} onChange={(e) => set('folder', e.target.value || undefined)} placeholder="none" list="connection-folders" />
+              <datalist id="connection-folders">
+                {folders.map((f) => (
+                  <option key={f} value={f} />
+                ))}
+              </datalist>
             </Field>
           </div>
 

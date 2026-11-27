@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { create } from 'zustand';
 import { toast } from 'sonner';
 import {
-  AlertCircle, ChevronRight, Code2, Copy, Database, Download, Eye, FilePlus2, FileSpreadsheet, FileCode2, FileDown, FileUp, FolderClosed, FunctionSquare, Loader2, Lock, MoreHorizontal, Network, Pencil, Plug, PlugZap, Plus, RefreshCw, ScrollText, Search, Server, Table2, Trash2, Upload, Workflow, Zap,
+  AlertCircle, ChevronRight, Code2, Copy, Database, Download, Eye, FilePlus2, FileSpreadsheet, FileCode2, FileDown, FileUp, Folder, FolderClosed, FolderInput, FolderMinus, FolderOpen, FolderPlus, FunctionSquare, Loader2, Lock, MoreHorizontal, Network, Pencil, Plug, PlugZap, Plus, RefreshCw, ScrollText, Search, Server, Table2, Trash2, Upload, Workflow, Zap,
 } from 'lucide-react';
 import { backend } from '@/lib/backend';
 import { useApp } from '@/lib/store';
@@ -120,14 +121,223 @@ async function exec(connId: string, db: string | undefined, sql: string, done: s
   return true;
 }
 
+/* ----------------------------- folders ----------------------------- */
+
+/** Extra indentation for rows inside a folder. */
+const Indent = createContext(0);
+
+const FOLDERS_KEY = 'explorer.folders';
+/** Drag data type of a connection row (its id). */
+const DRAG_CONN = 'application/x-lens-connection';
+
+interface FolderPrefs {
+  /** Folders shown closed. */
+  collapsed: string[];
+  /** Folders made with "New folder" that have no connections yet. */
+  empty: string[];
+}
+
+function loadFolderPrefs(): FolderPrefs {
+  try {
+    const v = JSON.parse(localStorage.getItem(FOLDERS_KEY) ?? '{}');
+    const list = (x: unknown) => (Array.isArray(x) ? x.filter((f): f is string => typeof f === 'string') : []);
+    return { collapsed: list(v.collapsed), empty: list(v.empty) };
+  } catch {
+    return { collapsed: [], empty: [] };
+  }
+}
+
+const useFolders = create<FolderPrefs>(loadFolderPrefs);
+useFolders.subscribe((s) => {
+  try {
+    localStorage.setItem(FOLDERS_KEY, JSON.stringify({ collapsed: s.collapsed, empty: s.empty }));
+  } catch {
+    // folders still work; their open state is just not remembered
+  }
+});
+
+const without = (list: string[], name: string) => list.filter((f) => f !== name);
+
+/** Puts connections into `folder` (null = top level). */
+async function moveTo(ids: string[], folder: string | null) {
+  const name = folder?.trim() || null;
+  try {
+    await backend.moveConnections(ids, name);
+    if (name) useFolders.setState((s) => ({ empty: without(s.empty, name), collapsed: without(s.collapsed, name) }));
+    await useApp.getState().load();
+  } catch (e) {
+    toast.error('Could not move the connection', { description: String(e) });
+  }
+}
+
+/** Asks for a folder name; null if cancelled. */
+async function askFolderName(title: string, initial = ''): Promise<string | null> {
+  const name = await ask({ title, confirm: initial ? 'Rename' : 'Create', input: { placeholder: 'Folder name', initial } });
+  return name?.trim() || null;
+}
+
+async function newFolder() {
+  const name = await askFolderName('New folder');
+  if (!name) return;
+  const used = useApp.getState().connections.some((c) => c.folder === name);
+  useFolders.setState((s) => ({ empty: used || s.empty.includes(name) ? s.empty : [...s.empty, name], collapsed: without(s.collapsed, name) }));
+}
+
+/** Handlers that let connection rows be dropped onto a folder (or the top level, with null). */
+function useDropTarget(folder: string | null) {
+  const [over, setOver] = useState(false);
+  const accepts = (e: React.DragEvent) => e.dataTransfer.types.includes(DRAG_CONN);
+  return {
+    over,
+    props: {
+      onDragOver: (e: React.DragEvent) => {
+        if (!accepts(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        setOver(true);
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
+      },
+      onDrop: (e: React.DragEvent) => {
+        const id = e.dataTransfer.getData(DRAG_CONN);
+        setOver(false);
+        if (!id) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const c = useApp.getState().connections.find((x) => x.id === id);
+        if (c && (c.folder ?? null) !== folder) void moveTo([id], folder);
+      },
+    },
+  };
+}
+
+function FolderNode({ name, conns, filter }: { name: string; conns: Connection[]; filter: string }) {
+  const collapsed = useFolders((s) => s.collapsed.includes(name));
+  const { over, props } = useDropTarget(name);
+  // While filtering, closed folders open so matches are visible.
+  const open = !collapsed || !!filter;
+  const toggle = () => useFolders.setState((s) => ({ collapsed: collapsed ? without(s.collapsed, name) : [...s.collapsed, name] }));
+  const newConnection = () => useApp.getState().openConnDialog({ id: '', name: '', color: '', host: '127.0.0.1', port: 3306, user: 'root', database: '', folder: name });
+
+  const rename = async () => {
+    const to = await askFolderName(`Rename folder "${name}"`, name);
+    if (!to || to === name) return;
+    useFolders.setState((s) => ({
+      collapsed: collapsed ? [...without(s.collapsed, name), to] : s.collapsed,
+      empty: s.empty.includes(name) ? [...without(s.empty, name), to] : s.empty,
+    }));
+    if (conns.length) await moveTo(conns.map((c) => c.id), to);
+  };
+
+  const remove = async () => {
+    if (conns.length && (await ask({ title: `Remove folder "${name}"?`, description: `Its ${conns.length} connection(s) move to the top level. Nothing is deleted.`, confirm: 'Remove folder' })) === null) return;
+    useFolders.setState((s) => ({ empty: without(s.empty, name), collapsed: without(s.collapsed, name) }));
+    if (conns.length) await moveTo(conns.map((c) => c.id), null);
+  };
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div {...props} className={cn('rounded-md', over && 'bg-primary/10 ring-1 ring-primary/50 ring-inset')}>
+          <Row
+            depth={0}
+            open={open}
+            expandable
+            onClick={toggle}
+            icon={open ? <FolderOpen className="text-amber-500" /> : <Folder className="text-amber-500" />}
+            label={<span className="font-semibold">{name}</span>}
+            meta={conns.length || undefined}
+            actions={
+              <Tooltip content="New connection in this folder">
+                <Button size="icon-xs" variant="ghost" onClick={(e) => (e.stopPropagation(), newConnection())}>
+                  <Plus />
+                </Button>
+              </Tooltip>
+            }
+          >
+            <Indent.Provider value={1}>
+              {conns.map((c) => (
+                <ConnectionNode key={c.id} c={c} filter={filter} />
+              ))}
+              {!conns.length && <div className="py-1 pr-2 pl-12 text-[12px] text-muted-foreground">Drag connections here</div>}
+            </Indent.Provider>
+          </Row>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={newConnection}>
+          <Plus /> New connection here…
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void rename()}>
+          <Pencil /> Rename folder…
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => void remove()}>
+          <FolderMinus /> Remove folder
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+/** "Move to folder" submenu of a connection. */
+function MoveMenu({ c }: { c: Connection }) {
+  const connections = useApp((s) => s.connections);
+  const empty = useFolders((s) => s.empty);
+  const folders = folderNames(connections, empty).filter((f) => f !== c.folder);
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>
+        <FolderInput /> Move to folder
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent className="min-w-40">
+        {folders.map((f) => (
+          <ContextMenuItem key={f} onSelect={() => void moveTo([c.id], f)}>
+            <Folder /> {f}
+          </ContextMenuItem>
+        ))}
+        {folders.length > 0 && <ContextMenuSeparator />}
+        <ContextMenuItem
+          onSelect={async () => {
+            const name = await askFolderName('New folder');
+            if (name) await moveTo([c.id], name);
+          }}
+        >
+          <FolderPlus /> New folder…
+        </ContextMenuItem>
+        {c.folder && (
+          <ContextMenuItem onSelect={() => void moveTo([c.id], null)}>
+            <FolderMinus /> Remove from folder
+          </ContextMenuItem>
+        )}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
+
+/** Every folder name, sorted: the ones in use plus empty ones made by the user. */
+function folderNames(connections: Connection[], empty: string[]): string[] {
+  const names = new Set<string>(empty);
+  for (const c of connections) if (c.folder) names.add(c.folder);
+  return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
+}
+
+/* ----------------------------- tree ----------------------------- */
+
 function Row({
-  depth, icon, label, meta, open, expandable, onClick, active, actions, children, className,
+  depth, icon, label, meta, open, expandable, onClick, active, actions, children, className, rowProps,
 }: {
   depth: number; icon: React.ReactNode; label: React.ReactNode; meta?: React.ReactNode; open?: boolean; expandable?: boolean; onClick?: () => void; active?: boolean; actions?: React.ReactNode; children?: React.ReactNode; className?: string;
+  /** Extra attributes of the row itself (not its children), e.g. drag handlers. */
+  rowProps?: React.HTMLAttributes<HTMLDivElement> & { draggable?: boolean };
 }) {
+  depth += useContext(Indent);
   return (
     <>
       <div
+        {...rowProps}
         role="treeitem"
         tabIndex={0}
         onClick={onClick}
@@ -184,6 +394,13 @@ function ConnectionNode({ c, filter }: { c: Connection; filter: string }) {
               </span>
             }
             meta={<span className="font-normal">{c.ssh ? 'SSH' : c.host}</span>}
+            rowProps={{
+              draggable: true,
+              onDragStart: (e) => {
+                e.dataTransfer.setData(DRAG_CONN, c.id);
+                e.dataTransfer.effectAllowed = 'move';
+              },
+            }}
             actions={
               <>
                 <Tooltip content="New query">
@@ -232,6 +449,7 @@ function ConnectionNode({ c, filter }: { c: Connection; filter: string }) {
         <ContextMenuItem onSelect={() => openConnDialog({ ...c, id: '', name: `${c.name} (copy)` })}>
           <Copy /> Duplicate
         </ContextMenuItem>
+        <MoveMenu c={c} />
         <ContextMenuItem
           disabled={state !== 'on'}
           onSelect={async () => {
@@ -439,8 +657,12 @@ function TableNode({ connId, db, name, rows, active, onOpen }: { connId: string;
 
 export function Explorer() {
   const connections = useApp((s) => s.connections);
+  const empty = useFolders((s) => s.empty);
   const { openConnDialog, refreshTree } = useApp.getState();
   const [filter, setFilter] = useState('');
+  const folders = useMemo(() => folderNames(connections, empty), [connections, empty]);
+  const loose = connections.filter((c) => !c.folder);
+  const root = useDropTarget(null);
 
   return (
     <aside className="flex h-full flex-col bg-sidebar">
@@ -450,6 +672,11 @@ export function Explorer() {
           <Tooltip content="New connection">
             <Button size="icon-xs" variant="ghost" onClick={() => openConnDialog()}>
               <Plus />
+            </Button>
+          </Tooltip>
+          <Tooltip content="New folder">
+            <Button size="icon-xs" variant="ghost" onClick={() => void newFolder()}>
+              <FolderPlus />
             </Button>
           </Tooltip>
           <Tooltip content="Refresh">
@@ -487,8 +714,11 @@ export function Explorer() {
           />
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-3" role="tree">
-        {connections.map((c) => (
+      <div {...root.props} className={cn('min-h-0 flex-1 overflow-y-auto px-1.5 pb-3', root.over && 'bg-primary/5')} role="tree">
+        {folders.map((f) => (
+          <FolderNode key={f} name={f} conns={connections.filter((c) => c.folder === f)} filter={filter} />
+        ))}
+        {loose.map((c) => (
           <ConnectionNode key={c.id} c={c} filter={filter} />
         ))}
         {!connections.length && (

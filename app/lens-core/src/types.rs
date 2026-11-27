@@ -60,6 +60,9 @@ pub struct Connection {
     pub ssh: Option<SshConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssl: Option<bool>,
+    /// Explorer folder the connection is grouped under; none = top level.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

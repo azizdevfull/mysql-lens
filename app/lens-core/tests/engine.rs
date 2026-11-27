@@ -11,7 +11,7 @@ const DB: &str = "mstudio_test";
 async fn engine() -> (Engine, String) {
     let dir = std::env::temp_dir().join(format!("lens-test-{}", uuid_like()));
     let e = Engine::new(ConnStore::new(dir.join("connections.json")), Arc::new(MemorySecrets::default()));
-    let c = Connection { id: String::new(), name: "test".into(), color: String::new(), host: "127.0.0.1".into(), port: 3306, user: "mstudio".into(), database: Some(DB.into()), read_only: None, ssh: None, ssl: None };
+    let c = Connection { id: String::new(), name: "test".into(), color: String::new(), host: "127.0.0.1".into(), port: 3306, user: "mstudio".into(), database: Some(DB.into()), read_only: None, ssh: None, ssl: None, folder: None };
     let saved = e.save_connection(c, Some("Mstudio_pass1".into())).await.unwrap();
     (e, saved.id)
 }

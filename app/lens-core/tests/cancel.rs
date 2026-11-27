@@ -23,6 +23,7 @@ async fn engine() -> Option<(Arc<Engine>, String)> {
         read_only: None,
         ssh: None,
         ssl: None,
+        folder: None,
     };
     let saved = e.save_connection(c, std::env::var("MYSQL_LENS_TEST_PASSWORD").ok()).await.unwrap();
     Some((Arc::new(e), saved.id))

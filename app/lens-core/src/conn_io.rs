@@ -36,6 +36,9 @@ pub fn export_json(list: &[Connection]) -> Value {
                 "readOnly": c.read_only.unwrap_or(false),
                 "ssl": { "enabled": c.ssl.unwrap_or(false), "rejectUnauthorized": true },
             });
+            if let Some(f) = c.folder.as_ref().filter(|f| !f.is_empty()) {
+                o["folder"] = json!(f);
+            }
             if let Some(s) = &c.ssh {
                 let mut ssh = json!({
                     "enabled": true,
@@ -121,6 +124,7 @@ pub fn parse_import(text: &str) -> Result<Vec<Connection>> {
                 read_only: o.get("readOnly").and_then(Value::as_bool).filter(|b| *b),
                 ssh: ssh_of(o.get("ssh")),
                 ssl: ssl.then_some(true),
+                folder: str_of(o, "folder"),
                 host,
                 user,
             })
@@ -149,6 +153,7 @@ mod tests {
             read_only: Some(true),
             ssh: Some(SshConfig { host: "bastion".into(), port: 2222, user: "ubuntu".into(), auth: "key".into(), key_path: Some("~/.ssh/id_ed25519".into()) }),
             ssl: Some(true),
+            folder: Some("Production".into()),
         }
     }
 

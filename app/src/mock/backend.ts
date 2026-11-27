@@ -1,4 +1,4 @@
-import type { Backend, Cell, Column, Connection, DbObjects, ForeignKey, HistoryEntry, McpSettings, ResultSet, RowChange, Snippet, TableMeta } from '@/lib/types';
+import type { Backend, Cell, Column, Connection, DbObjects, ForeignKey, HistoryEntry, McpSettings, ResultSet, RowChange, Snippet, TableMeta, WebSettings, WebStatus } from '@/lib/types';
 
 /* An in-memory fake server so the UI can be designed and tested without MySQL. */
 
@@ -226,8 +226,18 @@ function fakeDdl(table: string, columns: Column[]): string {
   return `CREATE TABLE \`${table}\` (\n${lines.join(',\n')}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
 }
 
+let webSettings: WebSettings = { enabled: false, port: 7431, lan: false, token: 'demo'.padEnd(64, '0') };
+const webStatusOf = (): WebStatus => ({
+  settings: webSettings,
+  running: webSettings.enabled,
+  port: webSettings.enabled ? webSettings.port : null,
+  error: null,
+  urls: webSettings.enabled ? [`http://127.0.0.1:${webSettings.port}`, ...(webSettings.lan ? [`http://192.168.1.20:${webSettings.port}`] : [])] : [],
+});
+
 export const mockBackend: Backend = {
   native: false,
+  web: false,
   async listConnections() {
     await delay(20);
     return connections;
@@ -242,6 +252,10 @@ export const mockBackend: Backend = {
   },
   async deleteConnection(id) {
     connections = connections.filter((c) => c.id !== id);
+  },
+  async moveConnections(ids, folder) {
+    const f = folder?.trim() || undefined;
+    connections = connections.map((c) => (ids.includes(c.id) ? { ...c, folder: f } : c));
   },
   async testConnection(c) {
     await delay(500);
@@ -311,6 +325,13 @@ export const mockBackend: Backend = {
     return { settings: mcpSettings, running: mcpSettings.enabled, port: mcpSettings.enabled ? mcpSettings.port : null, error: null };
   },
   async mcpApprove() {},
+  async webStatus() {
+    return webStatusOf();
+  },
+  async webSave(s) {
+    webSettings = { ...s, token: s.token.length < 32 ? `demo-${Date.now().toString(16)}`.padEnd(64, '0') : s.token };
+    return webStatusOf();
+  },
   async onMcpApproval() {
     return () => undefined;
   },

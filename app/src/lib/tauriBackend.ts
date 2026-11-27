@@ -2,23 +2,18 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import type { Backend, ExportFormat, McpActivity, McpApproval } from './types';
+import type { Backend, McpActivity, McpApproval } from './types';
+import { dumpFileName, EXPORT_EXT as EXT } from './files';
 
-const EXT: Record<ExportFormat, [string, string]> = {
-  csv: ['CSV', 'csv'],
-  tsv: ['TSV', 'tsv'],
-  json: ['JSON', 'json'],
-  sql: ['SQL', 'sql'],
-  markdown: ['Markdown', 'md'],
-  xlsx: ['Excel', 'xlsx'],
-};
 
 /** Backend implemented by the Rust side of the desktop app. */
 export const tauriBackend: Backend = {
   native: true,
+  web: false,
   listConnections: () => invoke('list_connections'),
   saveConnection: (c, secrets) => invoke('save_connection', { c, password: secrets?.password ?? null, sshPassword: secrets?.sshPassword ?? null, sshPassphrase: secrets?.sshPassphrase ?? null }),
   deleteConnection: (id) => invoke('delete_connection', { id }),
+  moveConnections: (ids, folder) => invoke('move_connections', { ids, folder }),
   testConnection: (c, password) => invoke('test_connection', { c, password: password || null }),
   connect: (id) => invoke('connect', { id }),
   disconnect: (id) => invoke('disconnect', { id }),
@@ -65,6 +60,8 @@ export const tauriBackend: Backend = {
   async onMcpActivity(cb) {
     return listen<McpActivity>('mcp-activity', (e) => cb(e.payload));
   },
+  webStatus: () => invoke('web_status'),
+  webSave: (settings) => invoke('web_save', { settings }),
   cancelQuery: (runId) => invoke('cancel_query', { runId }),
   previewChanges: (_id, db, table, columns, changes) => invoke('preview_changes', { db, table, columns, changes }),
   applyChanges: (id, db, table, columns, changes) => invoke('apply_changes', { id, db, table, columns, changes }),
@@ -77,8 +74,7 @@ export const tauriBackend: Backend = {
   },
   revealFile: (path) => revealItemInDir(path),
   async dumpDatabase(id, o, onProgress) {
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '').replace(/^(\d{8})/, '$1_');
-    const path = await save({ defaultPath: `${o.database}_${stamp}.sql${o.gzip ? '.gz' : ''}`, filters: o.gzip ? [{ name: 'Gzipped SQL', extensions: ['gz'] }] : [{ name: 'SQL dump', extensions: ['sql'] }] });
+    const path = await save({ defaultPath: dumpFileName(o), filters: o.gzip ? [{ name: 'Gzipped SQL', extensions: ['gz'] }] : [{ name: 'SQL dump', extensions: ['sql'] }] });
     if (!path) return null;
     const off = await listen<{ table: string; index: number; count: number; rows: number }>('dump-progress', (e) =>
       onProgress(`${e.payload.table} (${e.payload.index + 1}/${e.payload.count})${e.payload.rows ? ` · ${e.payload.rows.toLocaleString()} rows` : ''}`),

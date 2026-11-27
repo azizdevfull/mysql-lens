@@ -25,6 +25,8 @@ export interface Connection {
   readOnly?: boolean;
   ssh?: { host: string; port: number; user: string; auth: 'password' | 'key' | 'agent'; keyPath?: string };
   ssl?: boolean;
+  /** Explorer folder; missing = top level. */
+  folder?: string;
 }
 
 export interface TableMeta {
@@ -120,11 +122,15 @@ export interface Secrets {
 export type ExportFormat = 'csv' | 'tsv' | 'json' | 'sql' | 'markdown' | 'xlsx';
 
 export interface Backend {
-  /** True in the desktop app, false in the browser demo. */
+  /** True in the desktop app, false in a browser. */
   readonly native: boolean;
+  /** True in a browser using the desktop app's web access. */
+  readonly web: boolean;
   listConnections(): Promise<Connection[]>;
   saveConnection(c: Connection, secrets?: Secrets): Promise<Connection>;
   deleteConnection(id: string): Promise<void>;
+  /** Puts connections into a folder (null = top level) without disconnecting them. */
+  moveConnections(ids: string[], folder: string | null): Promise<void>;
   testConnection(c: Connection, password?: string): Promise<string>;
   connect(id: string): Promise<void>;
   disconnect(id: string): Promise<void>;
@@ -166,6 +172,10 @@ export interface Backend {
   /** Subscribes to AI write requests; returns the unsubscribe function. */
   onMcpApproval(cb: (a: McpApproval) => void, expired: (id: string) => void): Promise<() => void>;
   onMcpActivity(cb: (a: McpActivity) => void): Promise<() => void>;
+  /** Web access settings and state; null where they cannot be changed (in a browser). */
+  webStatus(): Promise<WebStatus | null>;
+  /** Saves and applies web access settings; an empty token gets a new one. */
+  webSave(settings: WebSettings): Promise<WebStatus>;
   /** Kills the statement running for `runId` and skips the rest. False if it already finished. */
   cancelQuery(runId: string): Promise<boolean>;
   previewChanges(id: string, db: string, table: string, columns: Column[], changes: RowChange[]): Promise<string[]>;
@@ -191,6 +201,23 @@ export interface Backend {
   exportConnections(): Promise<{ count: number; path: string } | null>;
   /** Asks for an export file and adds its connections. Null if cancelled. */
   importConnections(): Promise<{ added: number; skipped: number } | null>;
+}
+
+export interface WebSettings {
+  enabled: boolean;
+  port: number;
+  /** Listen on every network interface, so other devices can connect. */
+  lan: boolean;
+  token: string;
+}
+
+export interface WebStatus {
+  settings: WebSettings;
+  running: boolean;
+  port: number | null;
+  error: string | null;
+  /** Addresses to open in a browser, this computer first. */
+  urls: string[];
 }
 
 export type McpAccess = 'off' | 'read' | 'write';

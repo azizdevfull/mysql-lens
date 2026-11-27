@@ -120,6 +120,11 @@ fn opt_s(row: &Row, i: usize) -> Option<String> {
     }
 }
 
+/// A folder name as stored: trimmed, and none when blank.
+fn folder_name(f: Option<&str>) -> Option<String> {
+    f.map(str::trim).filter(|f| !f.is_empty()).map(str::to_string)
+}
+
 fn u(row: &Row, i: usize) -> u64 {
     s(row, i).parse().unwrap_or(0)
 }
@@ -142,6 +147,7 @@ impl Engine {
         if c.name.trim().is_empty() {
             c.name = format!("{}@{}", c.user, c.host);
         }
+        c.folder = folder_name(c.folder.as_deref());
         let mut all = self.store.list();
         match all.iter_mut().find(|x| x.id == c.id) {
             Some(x) => *x = c.clone(),
@@ -154,6 +160,17 @@ impl Engine {
         }
         self.disconnect(&c.id).await;
         Ok(c)
+    }
+
+    /// Puts the connections `ids` into `folder` (none or blank = top level).
+    /// Only the list is rewritten: open sessions stay connected.
+    pub fn move_connections(&self, ids: &[String], folder: Option<&str>) -> Result<()> {
+        let folder = folder_name(folder);
+        let mut all = self.store.list();
+        for c in all.iter_mut().filter(|c| ids.contains(&c.id)) {
+            c.folder = folder.clone();
+        }
+        self.store.write(&all)
     }
 
     pub async fn delete_connection(&self, id: &str) -> Result<()> {
@@ -852,5 +869,25 @@ mod tests {
         key.insert("id".into(), J::from(7));
         key.insert("code".into(), J::Null);
         assert_eq!(Engine::key_where(&cols, &key), "`code` IS NULL AND `id` = 7");
+    }
+
+    #[tokio::test]
+    async fn folders_are_trimmed_and_moving_keeps_the_rest() {
+        let dir = std::env::temp_dir().join(format!("lens-folders-{}", uuid::Uuid::new_v4()));
+        let e = Engine::new(ConnStore::new(dir.join("connections.json")), Arc::new(crate::store::MemorySecrets::default()));
+        let c = Connection { id: String::new(), name: "a".into(), color: String::new(), host: "h".into(), port: 3306, user: "u".into(), database: None, read_only: None, ssh: None, ssl: None, folder: Some("  Prod ".into()) };
+        let a = e.save_connection(c.clone(), None).await.unwrap();
+        let b = e.save_connection(Connection { name: "b".into(), folder: Some("   ".into()), ..c }, None).await.unwrap();
+        assert_eq!(a.folder.as_deref(), Some("Prod"));
+        assert_eq!(b.folder, None);
+
+        e.move_connections(&[b.id.clone()], Some(" Staging ")).unwrap();
+        let list = e.list_connections();
+        assert_eq!(list.iter().map(|c| c.folder.as_deref()).collect::<Vec<_>>(), [Some("Prod"), Some("Staging")]);
+        assert_eq!(list[1].name, "b");
+
+        e.move_connections(&[a.id.clone(), b.id.clone()], None).unwrap();
+        assert!(e.list_connections().iter().all(|c| c.folder.is_none()));
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
