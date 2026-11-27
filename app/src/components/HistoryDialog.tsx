@@ -148,6 +148,11 @@ export function HistoryDialog() {
                     {e.db && <span className="truncate">/ {e.db}</span>}
                     <span>·</span>
                     <span className="shrink-0">{when(e.ts)}</span>
+                    {e.source && (
+                      <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                        {e.source}
+                      </Badge>
+                    )}
                     <span className="ml-auto flex shrink-0 items-center gap-2 tabular-nums">
                       {e.error ? (
                         <Badge variant="destructive" className="h-4 gap-1 px-1 text-[10px]">

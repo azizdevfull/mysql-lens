@@ -17,6 +17,7 @@ import { ImportWizard } from '@/components/ImportWizard';
 import { HistoryDialog, openHistory } from '@/components/HistoryDialog';
 import { ValueEditor } from '@/components/ValueEditor';
 import { SnippetsDialog } from '@/components/SnippetsDialog';
+import { McpApprovalDialog, McpDialog, McpIndicator, useMcpEvents } from '@/components/McpPanel';
 import { ErView } from '@/views/ErView';
 import { TableView } from '@/views/TableView';
 import { QueryView, colorOf } from '@/views/QueryView';
@@ -153,6 +154,7 @@ function StatusBar() {
         <span>No connection</span>
       )}
       <span className="ml-auto">UTF-8 · MySQL</span>
+      <McpIndicator />
       {version && (
         <button onClick={() => void checkForUpdates(true)} className="rounded px-1 hover:bg-accent hover:text-foreground" title="Check for updates">
           v{version}
@@ -172,6 +174,7 @@ export default function App() {
   const [shown, setShown] = useState<Set<string>>(() => new Set([active]));
   useEffect(() => setShown((s) => (s.has(active) ? s : new Set(s).add(active))), [active]);
   const prod = useApp((s) => isProduction(s.connections.find((c) => c.id === s.tabs.find((t) => t.id === s.active)?.connId)));
+  useMcpEvents();
 
   useEffect(() => {
     void load().then(startSession);
@@ -232,6 +235,8 @@ export default function App() {
       <HistoryDialog />
       <ValueEditor />
       <SnippetsDialog />
+      <McpDialog />
+      <McpApprovalDialog />
       <Toaster theme={theme} position="bottom-right" richColors closeButton toastOptions={{ className: 'font-sans' }} />
     </TooltipProvider>
   );

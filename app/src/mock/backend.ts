@@ -1,4 +1,4 @@
-import type { Backend, Cell, Column, Connection, DbObjects, ForeignKey, HistoryEntry, ResultSet, RowChange, Snippet, TableMeta } from '@/lib/types';
+import type { Backend, Cell, Column, Connection, DbObjects, ForeignKey, HistoryEntry, McpSettings, ResultSet, RowChange, Snippet, TableMeta } from '@/lib/types';
 
 /* An in-memory fake server so the UI can be designed and tested without MySQL. */
 
@@ -202,6 +202,9 @@ function storeSnippets(list: Snippet[]) {
 }
 let snippets: Snippet[] = loadSnippets();
 
+/** The demo has no MCP server; its settings live for the page only. */
+let mcpSettings: McpSettings = { enabled: false, port: 7421, token: 'demo-token-0000000000000000000000000000000000000000000000000000', access: { local: 'read' }, maxRows: 200, timeoutSecs: 30 };
+
 function hexToBase64(hex: string): string {
   const body = hex.replace(/^0x/i, '');
   let bin = '';
@@ -299,6 +302,20 @@ export const mockBackend: Backend = {
   async foreignKeys(_id, name, table) {
     await delay(30);
     return { outgoing: FOREIGN_KEYS.filter((f) => f.db === name && f.table === table), incoming: FOREIGN_KEYS.filter((f) => f.refDb === name && f.refTable === table) };
+  },
+  async mcpStatus() {
+    return { settings: mcpSettings, running: mcpSettings.enabled, port: mcpSettings.enabled ? mcpSettings.port : null, error: null };
+  },
+  async mcpSave(s) {
+    mcpSettings = { ...s, token: s.token.length < 32 ? `demo-${Date.now().toString(16)}`.padEnd(64, '0') : s.token };
+    return { settings: mcpSettings, running: mcpSettings.enabled, port: mcpSettings.enabled ? mcpSettings.port : null, error: null };
+  },
+  async mcpApprove() {},
+  async onMcpApproval() {
+    return () => undefined;
+  },
+  async onMcpActivity() {
+    return () => undefined;
   },
   async dbForeignKeys(_id, name) {
     await delay(40);

@@ -157,6 +157,15 @@ export interface Backend {
   /** Adds a snippet (empty id) or replaces the one with its id. */
   snippetsSave(s: Snippet): Promise<Snippet>;
   snippetsDelete(id: string): Promise<void>;
+  /** AI access (MCP server): settings and whether it is listening. */
+  mcpStatus(): Promise<McpStatus>;
+  /** Saves and applies the settings; an empty token gets a new one. */
+  mcpSave(settings: McpSettings): Promise<McpStatus>;
+  /** Answers an approval request shown for an AI write. */
+  mcpApprove(id: string, allow: boolean): Promise<void>;
+  /** Subscribes to AI write requests; returns the unsubscribe function. */
+  onMcpApproval(cb: (a: McpApproval) => void, expired: (id: string) => void): Promise<() => void>;
+  onMcpActivity(cb: (a: McpActivity) => void): Promise<() => void>;
   /** Kills the statement running for `runId` and skips the rest. False if it already finished. */
   cancelQuery(runId: string): Promise<boolean>;
   previewChanges(id: string, db: string, table: string, columns: Column[], changes: RowChange[]): Promise<string[]>;
@@ -184,6 +193,47 @@ export interface Backend {
   importConnections(): Promise<{ added: number; skipped: number } | null>;
 }
 
+export type McpAccess = 'off' | 'read' | 'write';
+
+export interface McpSettings {
+  enabled: boolean;
+  port: number;
+  token: string;
+  /** Per connection id; missing means off. */
+  access: Record<string, McpAccess>;
+  maxRows: number;
+  timeoutSecs: number;
+}
+
+export interface McpStatus {
+  settings: McpSettings;
+  running: boolean;
+  port: number | null;
+  error: string | null;
+}
+
+/** A write an AI assistant wants to run. */
+export interface McpApproval {
+  id: string;
+  client: string;
+  connId: string;
+  connName: string;
+  db: string | null;
+  statements: string[];
+}
+
+export interface McpActivity {
+  client: string;
+  tool: string;
+  connId: string;
+  connName: string;
+  db: string | null;
+  sql: string;
+  ok: boolean;
+  error: string | null;
+  ms: number;
+}
+
 /** A saved query. */
 export interface Snippet {
   id: string;
@@ -208,6 +258,8 @@ export interface HistoryEntry {
   rows: number;
   affected: number;
   error?: string;
+  /** Set when not run by the user, e.g. "AI · claude-code". */
+  source?: string;
 }
 
 export interface SourceOptions {

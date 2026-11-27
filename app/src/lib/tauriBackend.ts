@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import type { Backend, ExportFormat } from './types';
+import type { Backend, ExportFormat, McpActivity, McpApproval } from './types';
 
 const EXT: Record<ExportFormat, [string, string]> = {
   csv: ['CSV', 'csv'],
@@ -51,6 +51,20 @@ export const tauriBackend: Backend = {
   snippetsList: () => invoke('snippets_list'),
   snippetsSave: (snippet) => invoke('snippets_save', { snippet }),
   snippetsDelete: (id) => invoke('snippets_delete', { id }),
+  mcpStatus: () => invoke('mcp_status'),
+  mcpSave: (settings) => invoke('mcp_save', { settings }),
+  mcpApprove: (id, allow) => invoke('mcp_approve', { id, allow }),
+  async onMcpApproval(cb, expired) {
+    const a = await listen<McpApproval>('mcp-approval', (e) => cb(e.payload));
+    const b = await listen<string>('mcp-approval-expired', (e) => expired(e.payload));
+    return () => {
+      a();
+      b();
+    };
+  },
+  async onMcpActivity(cb) {
+    return listen<McpActivity>('mcp-activity', (e) => cb(e.payload));
+  },
   cancelQuery: (runId) => invoke('cancel_query', { runId }),
   previewChanges: (_id, db, table, columns, changes) => invoke('preview_changes', { db, table, columns, changes }),
   applyChanges: (id, db, table, columns, changes) => invoke('apply_changes', { id, db, table, columns, changes }),
