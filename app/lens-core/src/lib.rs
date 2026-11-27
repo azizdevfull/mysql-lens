@@ -11,3 +11,4 @@ pub mod data_import;
 pub mod history;
 pub mod conn_io;
 pub mod snippets;
+pub mod mcp;
