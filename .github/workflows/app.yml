@@ -102,7 +102,22 @@ jobs:
         id: v
         run: echo "version=${GITHUB_REF_NAME#app-v}" >> "$GITHUB_OUTPUT"
 
+      # The action can only update a package that is already in winget; until the
+      # first version is merged there, skip with a note instead of failing.
+      - name: Package already in winget?
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api repos/microsoft/winget-pkgs/contents/manifests/a/Azizdevfull/MySQLLens --silent; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Azizdevfull.MySQLLens is not in winget-pkgs yet (first version still in review), so this release is not submitted. Re-run this job after it is merged."
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Submit to winget
+        if: steps.exists.outputs.yes == 'true'
         uses: vedantmgoyal9/winget-releaser@b7370d4d152efdce803a26cc6ca9eee58cb2ad54 # v2
         with:
           identifier: Azizdevfull.MySQLLens
