@@ -94,6 +94,27 @@ Or in VS Code: Extensions view → `…` menu → **Install from VSIX…**.
 - Export and import of the connection list (passwords are never exported).
 - Generate SELECT, INSERT and UPDATE templates; show DDL; create and drop databases; truncate and drop tables.
 
+## AI access (MCP)
+
+The Windows app can let AI assistants (Claude Code, Cursor, VS Code, Claude Desktop) use your saved connections through the [Model Context Protocol](https://modelcontextprotocol.io). It is off by default.
+
+1. Open **AI access (MCP)** from the status bar or `Ctrl+K`, and turn the server on.
+2. Choose per connection: **Off**, **Read only**, or **Read & write**. Production (red) connections start as off.
+3. Copy the configuration for your assistant. For Claude Code:
+
+   ```bash
+   claude mcp add --transport http mysql-lens http://127.0.0.1:7421/mcp --header "Authorization: Bearer <token from the app>"
+   ```
+
+What the assistant can do: list connections, databases and tables, describe a table (columns, indexes, foreign keys), run read queries, and run changes.
+
+How it is kept safe:
+
+- The server listens on `127.0.0.1` only and needs the token shown in the app.
+- Read queries run inside a read-only transaction, so MySQL itself refuses any change, and results are limited (200 rows and 30 seconds by default).
+- Every change (`INSERT`, `UPDATE`, `DELETE`, DDL) opens a window in MySQL Lens showing the SQL; it runs only if you press **Allow**, and is rejected after 2 minutes without an answer.
+- Every request appears in the query history (`Ctrl+H`) marked with the assistant's name.
+
 ## Keyboard shortcuts
 
 | Where | Keys | Action |
