@@ -1,3 +1,3 @@
-- AI access (MCP): let Claude Code, Cursor, VS Code or Claude Desktop use your connections. Turn it on from the status bar or Ctrl+K → "AI access (MCP)", choose Off / Read only / Read & write per connection, and copy the ready-made configuration
-- Reads run in a read-only transaction with row and time limits; every change shows its SQL here and runs only if you press Allow
-- AI requests are listed in the query history (Ctrl+H) with the assistant's name
+- Folders in the explorer: make one with the folder button, then drag connections onto it or right-click a connection → Move to folder. Right-click a folder to rename it, remove it or add a connection to it
+- Web access (Settings → Web access): use MySQL Lens from a browser while the app is running. Copy or open the sign-in link; turn on "Other devices" to reach it from a phone or another computer on the same network
+- In the browser, exports and dumps download as files and imports upload the file you pick; AI approval requests show up there too

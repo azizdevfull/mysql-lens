@@ -109,11 +109,17 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 
 - ✅ AI access (MCP): ilova ichida MCP server (Streamable HTTP, `127.0.0.1`, bearer token). Har bir ulanish uchun Off / Read only / Read & write. Asboblar: `list_connections`, `list_databases`, `list_tables`, `describe_table`, `query`, `execute`. O'qish `START TRANSACTION READ ONLY` ichida, qator va vaqt limiti bilan. Har bir yozish ilovada tasdiq oynasini ochadi (2 daqiqada javob bo'lmasa rad etiladi), oyna oldinga chiqadi. Hamma so'rovlar history'da "AI · klient" belgisi bilan. Claude Code, Cursor, VS Code, Claude Desktop uchun tayyor konfiguratsiya. Claude Code bilan oxirigacha sinab ko'rilgan.
 
+## Tayyor bo'lganlar (0.9.0)
+
+- ✅ Explorer papkalari: ulanishlarni papkalarga guruhlash (`folder` maydoni `connections.json` va eksport faylida). Yangi papka tugmasi, sudrab tashlash, "Move to folder" menyusi, papkani qayta nomlash/olib tashlash. Ko'chirish ulanishni uzmaydi.
+- ✅ Web access: Settings → Web access'da ilova ichidagi HTTP serverni yoqish (standart `127.0.0.1:7431`, "Other devices" bilan butun tarmoqqa). Token bilan kirish (HttpOnly cookie), `x-lens` sarlavhasi va Origin tekshiruvi, fayllar faqat yuklash/yuklab olish orqali. Progress va AI tasdiqlari brauzerga SSE orqali keladi.
+
 ## Keyinroq (g'oyalar)
 
 - ER diagrammani PNG/SVG sifatida eksport qilish, joylashuvni saqlab qolish
 - Query natijalarida ham FK havolalari (`org_table` orqali)
 - MCP: stdio rejimi (`mysql-lens.exe --mcp`) faqat stdio qo'llaydigan klientlar uchun; Zed uchun kengaytma
+- Web access: HTTPS (o'z-o'zidan imzolangan sertifikat) tarmoq rejimi uchun
 - Jadval strukturasini tahrirlash (ustun, indeks, foreign key) — `ALTER TABLE` preview bilan
 - Schema compare: staging ↔ production, farqni tuzatadigan SQL bilan
 - Server monitori: processlist va KILL, sekin so'rovlar, holat grafiklari
