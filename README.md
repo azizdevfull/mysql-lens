@@ -1,14 +1,34 @@
 # MySQL Lens
 
-A MySQL and MariaDB client for VS Code with **unlimited connections**, SSH tunnels, an editable data grid, SQL autocomplete, and import/export for CSV, Excel, JSON and SQL dumps. Free and open source.
+**A fast, free MySQL and MariaDB client for Windows.** Edit data like a spreadsheet, follow foreign keys, see your schema as an ER diagram, run changes in a safe transaction — and let AI assistants work with your databases, with your approval for every change.
 
-![Table editor with SQL autocomplete](media/screenshots/autocomplete.png)
+[**Website**](https://lens.azizdevfull.uz) · [**Download**](https://github.com/azizdevfull/mysql-lens/releases/latest) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=azizdevfull.mysql-lens)
 
-## Installation
+```powershell
+irm https://raw.githubusercontent.com/azizdevfull/mysql-lens/main/install.ps1 | iex
+```
 
-MySQL Lens comes in two forms: a standalone **Windows app** and a **VS Code extension**.
+![Data grid with foreign key links and the row panel](media/app/table.webp)
 
-### Windows app
+## Features
+
+- **Editable data grid.** Edit cells, add and delete rows, paste from Excel. Changes are shown as SQL and saved in one transaction.
+- **Foreign key navigation.** Ctrl+click a foreign key value to open the row it points at; the row panel lists the tables that point back, with counts.
+- **ER diagram.** Tables, columns and relations of a database; drag, zoom, click a table to highlight its links.
+- **Manual commit mode.** Run statements in one transaction, then Commit or Rollback. The toolbar shows what is not committed yet.
+- **AI access (MCP).** Claude Code, Cursor, VS Code or Claude Desktop can use the connections you allow; every write waits for your approval.
+- **SQL editor.** Autocomplete, formatting (`Shift+Alt+F`), saved queries (`Ctrl+S`), searchable history (`Ctrl+H`).
+- **JSON and BLOB editor.** JSON is formatted and validated, images in BLOBs are previewed, other binary data is shown as hex.
+- **Import and export.** CSV, Excel, JSON, SQL dumps, with progress for large tables.
+- **Safety.** Red (production) connections confirm every write; `UPDATE`/`DELETE` without `WHERE`, `DROP` and `TRUNCATE` always ask.
+- **Connections.** Unlimited, with SSH tunnels and SSL; passwords stay in the Windows Credential Manager.
+- **Small and native.** Tauri + Rust, a 4 MB installer that updates itself.
+
+| ER diagram | AI asks before changing data |
+|---|---|
+| ![ER diagram](media/app/er.webp) | ![Approval for an AI change](media/app/mcp-approve.webp) |
+
+## Install
 
 Requires 64-bit Windows 10 or 11. The installer is per-user, so no administrator rights are needed.
 
@@ -38,62 +58,6 @@ $env:MYSQL_LENS_VERSION = '0.6.0'; irm https://raw.githubusercontent.com/azizdev
 
 **Uninstall.** Settings → Apps → Installed apps → MySQL Lens → Uninstall.
 
-### VS Code extension
-
-Build the extension and install the `.vsix` file:
-
-```bash
-npm install
-npm run package
-code --install-extension mysql-lens-*.vsix
-```
-
-Or in VS Code: Extensions view → `…` menu → **Install from VSIX…**.
-
-## Features
-
-### Connections
-- Unlimited connections to MySQL 5.7+, 8.x, 9.x and MariaDB.
-- SSH tunnels with a password, a private key or ssh-agent. If the chosen key is rejected, the default `~/.ssh` keys are tried, like `ssh` does.
-- SSL/TLS with an optional CA, client certificate and key.
-- Read-only mode, which starts every session with `SET SESSION TRANSACTION READ ONLY`.
-- A color tag for each connection, for example red for production.
-- Passwords are stored in the OS keychain through VS Code Secret Storage.
-- Paste a `mysql://user:pass@host:3306/db` URL to fill in the form.
-
-![Connection form](media/screenshots/connection.png)
-
-### Table editor
-- A query box at the top with syntax highlighting and autocomplete for columns (with types), tables, aliases (`u.` lists the columns of `users u`), keywords and functions.
-- `SELECT * FROM table WHERE … ORDER BY … LIMIT …` keeps the grid editable and paged. Any other query (JOINs, aggregates) shows a read-only result.
-- Inline editing, adding, duplicating and deleting rows, setting NULL, and pasting from Excel. Before saving, the SQL is shown for review, and all changes are saved in one transaction.
-- Filter by a cell value, server-side sorting, and paging.
-
-![Editing rows](media/screenshots/table-editor.png)
-
-### SQL editor
-- In any `.sql` file, `Ctrl+Enter` runs the statement at the cursor (or the selection) and `Ctrl+Shift+Enter` runs all statements.
-- Each editor has its own session, so `USE`, `SET` and transactions carry over between runs.
-- The connection and database for the editor are chosen from the status bar.
-- The results grid is virtualized, so large results stay fast. It supports multiple result sets, search, a Sum/Avg summary of the selection, and copying as TSV, CSV, JSON, SQL INSERT, Markdown or an `IN (…)` list.
-- Cancel a running query (`KILL QUERY`).
-- You are asked to confirm before `UPDATE`/`DELETE` without `WHERE`, `DROP` and `TRUNCATE`.
-
-![Query results](media/screenshots/results.png)
-
-### Import and export
-- **Export** a table or a query result to CSV, TSV, Excel (.xlsx), JSON, SQL INSERT or Markdown. Rows are streamed, so large tables work.
-- **Dump** a database to `.sql` or `.sql.gz`: structure and/or data, views, procedures, functions and triggers, without `DEFINER` clauses.
-- **Run SQL files** (`.sql` or `.sql.gz`) as a stream, with `DELIMITER` support. When a statement fails, choose Skip, Skip All or Stop.
-- **Import CSV, TSV, JSON/JSON Lines or Excel** into an existing table (columns are matched automatically) or into a new table (column types are detected). Choose INSERT, INSERT IGNORE or REPLACE. The import runs in a single transaction.
-
-![Import wizard](media/screenshots/import.png)
-
-### Also
-- Query history.
-- Export and import of the connection list (passwords are never exported).
-- Generate SELECT, INSERT and UPDATE templates; show DDL; create and drop databases; truncate and drop tables.
-
 ## AI access (MCP)
 
 The Windows app can let AI assistants (Claude Code, Cursor, VS Code, Claude Desktop) use your saved connections through the [Model Context Protocol](https://modelcontextprotocol.io). It is off by default.
@@ -115,39 +79,20 @@ How it is kept safe:
 - Every change (`INSERT`, `UPDATE`, `DELETE`, DDL) opens a window in MySQL Lens showing the SQL; it runs only if you press **Allow**, and is rejected after 2 minutes without an answer.
 - Every request appears in the query history (`Ctrl+H`) marked with the assistant's name.
 
-## Keyboard shortcuts
+## VS Code extension
 
-| Where | Keys | Action |
-|---|---|---|
-| SQL file | `Ctrl+Enter` | Run statement at cursor / selection |
-| SQL file | `Ctrl+Shift+Enter` | Run all statements |
-| Query box | `Ctrl+Enter` / `Ctrl+Space` | Run / show suggestions |
-| Grid | `Enter`, `F2` or typing | Edit cell |
-| Grid | `Ctrl+0` | Set NULL while editing |
-| Grid | `Delete` | Delete the selected rows |
-| Grid | `Ctrl+C` / `Ctrl+Shift+C` | Copy / copy with headers |
-| Table | `Ctrl+S`, `F5`, `Ctrl+L` | Save, reload, focus the query box |
+MySQL Lens is also a VS Code extension (any OS) with the data grid, SQL editor and import/export:
 
-## Settings
+```bash
+code --install-extension azizdevfull.mysql-lens
+```
 
-| Setting | Default | Description |
-|---|---|---|
-| `mysqlLens.maxRows` | 5000 | Rows kept in the result grid for one query |
-| `mysqlLens.pageSize` | 200 | Rows per page in the table editor |
-| `mysqlLens.showSystemDatabases` | false | Show `mysql`, `sys` and the schema databases |
-| `mysqlLens.confirmDangerousQueries` | true | Confirm risky statements |
-| `mysqlLens.historySize` | 500 | Queries kept in the history |
+See [README.vscode.md](README.vscode.md) for its features, shortcuts and settings.
 
 ## Development
 
-```bash
-npm install
-npm run watch        # then press F5 in VS Code
-npm run typecheck
-npm run test:unit
-npm test             # integration tests; needs a MySQL server (MSTUDIO_* env vars)
-npm run package      # builds the .vsix
-```
+- Windows app (`app/`, Tauri + Rust + React): `cd app && npm install && npm run dev` runs the UI with demo data in a browser; `npx tauri dev` runs the desktop app; `cargo test -p lens-core` runs the Rust tests.
+- VS Code extension (repository root): `npm install`, `npm run watch`, then press F5 in VS Code; `npm run package` builds the `.vsix`.
 
 ## Privacy
 

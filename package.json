@@ -528,8 +528,8 @@
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p webview-ui",
     "test:unit": "esbuild test/unit.test.ts --bundle --platform=node --format=cjs --outfile=test/out/unit.test.cjs --log-level=warning && node --test test/out/unit.test.cjs",
     "test": "esbuild test/unit.test.ts test/integration.test.ts --bundle --platform=node --format=cjs --outdir=test/out --out-extension:.js=.cjs --external:cpu-features --log-level=warning && node --test test/out/",
-    "package": "npm run typecheck && node esbuild.mjs --production && vsce package --no-dependencies",
-    "publish": "npm run typecheck && node esbuild.mjs --production && vsce publish --no-dependencies"
+    "package": "npm run typecheck && node esbuild.mjs --production && vsce package --no-dependencies --readme-path README.vscode.md",
+    "publish": "npm run typecheck && node esbuild.mjs --production && vsce publish --no-dependencies --readme-path README.vscode.md"
   },
   "dependencies": {
     "csv-parse": "^7.0.3",
