@@ -635,12 +635,12 @@ fn local_origin(origin: &str) -> bool {
     ["http://localhost", "http://127.0.0.1", "https://localhost", "https://127.0.0.1"].iter().any(|o| origin == *o || origin.starts_with(&format!("{o}:")))
 }
 
-fn local_host(host: &str, port: u16) -> bool {
+pub(crate) fn local_host(host: &str, port: u16) -> bool {
     [format!("127.0.0.1:{port}"), format!("localhost:{port}"), "127.0.0.1".into(), "localhost".into()].contains(&host.to_ascii_lowercase())
 }
 
 /// Compares in constant time, so the token cannot be guessed from response times.
-fn same(a: &str, b: &str) -> bool {
+pub(crate) fn same(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 

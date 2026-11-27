@@ -12,3 +12,4 @@ pub mod history;
 pub mod conn_io;
 pub mod snippets;
 pub mod mcp;
+pub mod web;
