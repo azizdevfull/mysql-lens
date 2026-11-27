@@ -139,9 +139,9 @@ Connections are stored on your computer (`%APPDATA%\uz.azizdev.mysqllens`). Pass
 
 ## Code signing policy
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+The Windows installer is not code-signed yet, so Windows SmartScreen or Smart App Control may warn before installing it.
 
-Windows releases are built from this repository by [GitHub Actions](.github/workflows/app.yml); nothing is built or uploaded by hand. Only the installer produced by that workflow from a release tag (`app-v*`) is signed, and every signing request is approved by hand.
+Windows releases are built from this repository by [GitHub Actions](.github/workflows/app.yml); nothing is built or uploaded by hand. Once code signing is set up, only the installer produced by that workflow from a release tag (`app-v*`) will be signed, and every signing request will be approved by hand.
 
 Team roles:
 
