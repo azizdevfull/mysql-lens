@@ -37,6 +37,9 @@ pub struct HistoryEntry {
     pub affected: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Who ran it when not the user, e.g. "AI · Claude Code" for MCP requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 impl HistoryEntry {
@@ -59,6 +62,7 @@ impl HistoryEntry {
             rows: results.iter().filter(|r| r.kind == "rows").map(|r| r.total_rows).sum(),
             affected: results.iter().filter_map(|r| r.affected_rows).sum(),
             error: results.iter().find_map(|r| r.error.clone()),
+            source: None,
         }
     }
 }

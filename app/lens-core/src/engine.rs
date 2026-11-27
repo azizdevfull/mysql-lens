@@ -597,6 +597,28 @@ impl Engine {
         }
     }
 
+    /// Runs statements for an AI assistant (MCP). With `read_only` they run inside
+    /// `START TRANSACTION READ ONLY`, so the server itself rejects any write, and the
+    /// transaction is always rolled back. `cancel(run_id)` stops it like a normal run.
+    pub async fn run_ai(&self, id: &str, db: Option<&str>, statements: &[String], read_only: bool, run_id: &str) -> Result<Vec<ResultSet>> {
+        let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let _guard = RunGuard { running: &self.running, run_id: Some(run_id.to_string()) };
+        self.running.lock().unwrap().insert(run_id.to_string(), Running { conn_id: id.to_string(), thread_id: 0, cancelled: cancelled.clone() });
+        let mut conn = self.conn(id, db).await?;
+        if let Some(r) = self.running.lock().unwrap().get_mut(run_id) {
+            r.thread_id = conn.id();
+        }
+        if read_only {
+            conn.query_drop("START TRANSACTION READ ONLY").await?;
+        }
+        let out = self.run_on(&mut conn, statements, &cancelled).await;
+        if read_only {
+            // Always, so the pooled connection never goes back with the transaction open.
+            let _ = conn.query_drop("ROLLBACK").await;
+        }
+        Ok(out)
+    }
+
     /// Stops the run started with `run_id`: the statement executing on the server
     /// is killed (`KILL QUERY` from a second connection) and no further statements run.
     /// Returns false when that run already finished.
@@ -795,6 +817,7 @@ fn _futures_are_send(e: &Engine) {
     send(e.run_statements("", None, &[], None, Some("")));
     send(e.tx_end("", "", true));
     send(e.tx_close(""));
+    send(e.run_ai("", None, &[], true, ""));
 }
 
 #[cfg(test)]
