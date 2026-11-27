@@ -1,3 +1,5 @@
+mod web;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -9,7 +11,7 @@ use lens_core::mcp::{self, Activity, Approval, McpHandle, McpHost, McpServer, Mc
 use lens_core::snippets::{Snippet, SnippetStore};
 use lens_core::store::{ConnStore, SecretStore};
 use lens_core::types::*;
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 type R<T> = Result<T, LensError>;
 
@@ -96,14 +98,14 @@ impl McpHost for AppMcpHost {
             let _ = w.set_focus();
             let _ = w.request_user_attention(Some(tauri::UserAttentionType::Critical));
         }
-        if self.app.emit("mcp-approval", &request).is_err() {
+        if web::emit(&self.app, "mcp-approval", &request).is_err() {
             self.approvals.lock().unwrap().remove(&id);
             return false;
         }
         let answer = tokio::time::timeout(APPROVAL_TIMEOUT, rx).await;
         self.approvals.lock().unwrap().remove(&id);
         if answer.is_err() {
-            let _ = self.app.emit("mcp-approval-expired", &id);
+            let _ = web::emit(&self.app, "mcp-approval-expired", &id);
         }
         matches!(answer, Ok(Ok(true)))
     }
@@ -117,7 +119,7 @@ impl McpHost for AppMcpHost {
         }
         // History is a convenience: a failed write must not fail the request.
         let _ = self.app.state::<AppState>().history.add(entry);
-        let _ = self.app.emit("mcp-activity", a);
+        let _ = web::emit(&self.app, "mcp-activity", a);
     }
 }
 
@@ -214,6 +216,12 @@ async fn save_connection(s: State<'_, AppState>, c: Connection, password: Option
 #[tauri::command]
 async fn delete_connection(s: State<'_, AppState>, id: String) -> R<()> {
     s.engine.delete_connection(&id).await
+}
+
+/// Moves connections into a folder (none = top level) without disconnecting them.
+#[tauri::command]
+async fn move_connections(s: State<'_, AppState>, ids: Vec<String>, folder: Option<String>) -> R<()> {
+    s.engine.move_connections(&ids, folder.as_deref())
 }
 
 #[tauri::command]
@@ -406,7 +414,7 @@ async fn apply_changes(s: State<'_, AppState>, id: String, db: String, table: St
 async fn export_data(app: tauri::AppHandle, s: State<'_, AppState>, id: String, db: String, table: String, sql: String, format: String, path: PathBuf) -> R<u64> {
     s.engine
         .export(&id, &db, &table, &sql, &format, &path, |n| {
-            let _ = app.emit("export-progress", n);
+            let _ = web::emit(&app, "export-progress", n);
             true
         })
         .await
@@ -416,7 +424,7 @@ async fn export_data(app: tauri::AppHandle, s: State<'_, AppState>, id: String, 
 async fn dump_database(app: tauri::AppHandle, s: State<'_, AppState>, id: String, opts: lens_core::dump::DumpOptions, path: PathBuf) -> R<lens_core::dump::DumpResult> {
     s.engine
         .dump(&id, &opts, &path, |table, i, n, rows| {
-            let _ = app.emit("dump-progress", serde_json::json!({ "table": table, "index": i, "count": n, "rows": rows }));
+            let _ = web::emit(&app, "dump-progress", serde_json::json!({ "table": table, "index": i, "count": n, "rows": rows }));
             true
         })
         .await
@@ -426,7 +434,7 @@ async fn dump_database(app: tauri::AppHandle, s: State<'_, AppState>, id: String
 async fn import_sql(app: tauri::AppHandle, s: State<'_, AppState>, id: String, db: Option<String>, path: PathBuf, continue_on_error: bool) -> R<lens_core::dump::ImportResult> {
     s.engine
         .import_sql(&id, db.as_deref(), &path, continue_on_error, |read, total, statements| {
-            let _ = app.emit("import-progress", serde_json::json!({ "read": read, "total": total, "statements": statements }));
+            let _ = web::emit(&app, "import-progress", serde_json::json!({ "read": read, "total": total, "statements": statements }));
             true
         })
         .await
@@ -441,7 +449,7 @@ async fn import_preview(path: PathBuf, opts: Option<lens_core::data_import::Sour
 async fn import_data(app: tauri::AppHandle, s: State<'_, AppState>, id: String, db: String, path: PathBuf, opts: lens_core::data_import::SourceOptions, plan: lens_core::data_import::ImportPlan) -> R<u64> {
     s.engine
         .import_data(&id, &db, &path, &opts, &plan, |n| {
-            let _ = app.emit("data-import-progress", n);
+            let _ = web::emit(&app, "data-import-progress", n);
             true
         })
         .await
@@ -459,11 +467,13 @@ pub fn run() {
             let history = HistoryStore::new(dir.join("history.jsonl"), HISTORY_CAP);
             let snippets = SnippetStore::new(dir.join("snippets.json"));
             let mcp = McpState { store: McpSettingsStore::new(dir.join("mcp.json")), running: tokio::sync::Mutex::new(None), error: std::sync::Mutex::new(None), approvals: Arc::new(std::sync::Mutex::new(HashMap::new())) };
+            app.manage(web::WebState::new(&dir));
             app.manage(AppState { engine, mcp, history, snippets, session_path: dir.join("session.json") });
-            // AI access starts with the app when it was left on.
+            // AI access and web access start with the app when they were left on.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let _ = mcp_apply(&handle).await;
+                let _ = web::apply(&handle).await;
             });
 
             // Same flags Tauri uses by default; the smoke test can additionally
@@ -488,6 +498,7 @@ pub fn run() {
             list_connections,
             save_connection,
             delete_connection,
+            move_connections,
             test_connection,
             connect,
             disconnect,
@@ -525,7 +536,9 @@ pub fn run() {
             history_delete,
             history_clear,
             export_connections,
-            import_connections
+            import_connections,
+            web::web_status,
+            web::web_save
         ])
         .run(tauri::generate_context!())
         .expect("error while running MySQL Lens");

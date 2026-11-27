@@ -3,7 +3,7 @@ import { checkForUpdates } from '@/lib/updater';
 import { backend } from '@/lib/backend';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Toaster, toast } from 'sonner';
-import { Command, Database, FileCode2, Home, Moon, Network, Plus, Sun, Table2, X, Eye } from 'lucide-react';
+import { Command, Database, FileCode2, Home, Moon, Network, Plus, Settings, Sun, Table2, X, Eye } from 'lucide-react';
 import { useApp } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { HistoryDialog, openHistory } from '@/components/HistoryDialog';
 import { ValueEditor } from '@/components/ValueEditor';
 import { SnippetsDialog } from '@/components/SnippetsDialog';
 import { McpApprovalDialog, McpDialog, McpIndicator, useMcpEvents } from '@/components/McpPanel';
+import { openSettings, SettingsDialog, useWebStatus, WebIndicator } from '@/components/SettingsDialog';
 import { ErView } from '@/views/ErView';
 import { TableView } from '@/views/TableView';
 import { QueryView, colorOf } from '@/views/QueryView';
@@ -108,11 +109,18 @@ function TitleBar() {
         Search tables, run commands…
         <Kbd className="ml-auto">Ctrl K</Kbd>
       </button>
-      <Tooltip content={theme === 'dark' ? 'Light theme' : 'Dark theme'}>
-        <Button size="icon-sm" variant="ghost" onClick={toggleTheme}>
-          {theme === 'dark' ? <Sun /> : <Moon />}
-        </Button>
-      </Tooltip>
+      <div className="flex items-center">
+        <Tooltip content={theme === 'dark' ? 'Light theme' : 'Dark theme'}>
+          <Button size="icon-sm" variant="ghost" onClick={toggleTheme}>
+            {theme === 'dark' ? <Sun /> : <Moon />}
+          </Button>
+        </Tooltip>
+        <Tooltip content="Settings">
+          <Button size="icon-sm" variant="ghost" onClick={openSettings}>
+            <Settings />
+          </Button>
+        </Tooltip>
+      </div>
     </div>
   );
 }
@@ -154,6 +162,7 @@ function StatusBar() {
         <span>No connection</span>
       )}
       <span className="ml-auto">UTF-8 · MySQL</span>
+      <WebIndicator />
       <McpIndicator />
       {version && (
         <button onClick={() => void checkForUpdates(true)} className="rounded px-1 hover:bg-accent hover:text-foreground" title="Check for updates">
@@ -175,6 +184,7 @@ export default function App() {
   useEffect(() => setShown((s) => (s.has(active) ? s : new Set(s).add(active))), [active]);
   const prod = useApp((s) => isProduction(s.connections.find((c) => c.id === s.tabs.find((t) => t.id === s.active)?.connId)));
   useMcpEvents();
+  useWebStatus();
 
   useEffect(() => {
     void load().then(startSession);
@@ -237,6 +247,7 @@ export default function App() {
       <SnippetsDialog />
       <McpDialog />
       <McpApprovalDialog />
+      <SettingsDialog />
       <Toaster theme={theme} position="bottom-right" richColors closeButton toastOptions={{ className: 'font-sans' }} />
     </TooltipProvider>
   );

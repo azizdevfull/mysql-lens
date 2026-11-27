@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Bookmark, Bot, Database, Download, Eye, FileDown, FilePlus2, FileUp, History, Moon, Network, Plus, RefreshCw, RotateCcw, Server, Sun, Table2 } from 'lucide-react';
+import { Bookmark, Bot, Database, Download, Eye, FileDown, FilePlus2, FileUp, Globe, History, Moon, Network, Plus, RefreshCw, RotateCcw, Server, Settings, Sun, Table2 } from 'lucide-react';
 import { openHistory } from '@/components/HistoryDialog';
 import { openSnippets } from '@/components/SnippetsDialog';
 import { openMcp } from '@/components/McpPanel';
+import { openSettings } from '@/components/SettingsDialog';
 import { exportConnections, importConnections } from '@/components/Explorer';
 import { checkForUpdates } from '@/lib/updater';
 import { backend } from '@/lib/backend';
@@ -101,6 +102,12 @@ export function CommandPalette() {
               </CommandItem>
               <CommandItem value="ai access mcp claude cursor" onSelect={() => run(openMcp)}>
                 <Bot /> AI access (MCP)…
+              </CommandItem>
+              <CommandItem value="settings preferences" onSelect={() => run(openSettings)}>
+                <Settings /> Settings…
+              </CommandItem>
+              <CommandItem value="web access browser server lan" onSelect={() => run(openSettings)}>
+                <Globe /> Web access…
               </CommandItem>
               {dbs.map((h) => (
                 <CommandItem key={`er.${h.connId}.${h.db}`} value={`er diagram ${h.db} ${h.connName}`} onSelect={() => run(() => openEr(h.connId, h.db))}>
