@@ -1,3 +1,3 @@
-- Manual commit mode for query tabs: changes stay in one transaction until you press Commit or Rollback; the toolbar shows how many statements are not committed yet
-- Saved queries: Ctrl+S in a query tab saves its SQL under a name; open them from Ctrl+K, rename or delete them in "Saved queries…"
-- ER diagram of a database (right-click a database, or Ctrl+K → ER diagram): tables, columns and foreign keys; drag, zoom, click a table to highlight its links, double-click to open it
+- AI access (MCP): let Claude Code, Cursor, VS Code or Claude Desktop use your connections. Turn it on from the status bar or Ctrl+K → "AI access (MCP)", choose Off / Read only / Read & write per connection, and copy the ready-made configuration
+- Reads run in a read-only transaction with row and time limits; every change shows its SQL here and runs only if you press Allow
+- AI requests are listed in the query history (Ctrl+H) with the assistant's name

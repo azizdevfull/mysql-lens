@@ -105,10 +105,15 @@ Holat belgilari: ⬜ rejada · 🟡 jarayonda · ✅ tayyor.
 - ✅ Saqlangan so'rovlar: query tab'da `Ctrl+S` saqlaydi (`Ctrl+Shift+S` yangi nom bilan), `Ctrl+K` da "Saved queries" guruhi, "Saved queries…" dialogida qidirish, nomini o'zgartirish, o'chirish. `snippets.json` ilova papkasida, buzilgan fayl `.bak` qilib saqlanadi.
 - ✅ ER diagramma: bazaning jadvallari, ustunlari va foreign key'lari (dagre layout, faqat ochilganda yuklanadi). Sudrash, zoom, jadvalni tanlab bog'lanishlarini ajratish, ikki marta bosib ochish, qidiruv, "Keys only" rejimi. Explorer'da bazaga o'ng tugma yoki `Ctrl+K` → "ER diagram".
 
+## Tayyor bo'lganlar (0.8.0)
+
+- ✅ AI access (MCP): ilova ichida MCP server (Streamable HTTP, `127.0.0.1`, bearer token). Har bir ulanish uchun Off / Read only / Read & write. Asboblar: `list_connections`, `list_databases`, `list_tables`, `describe_table`, `query`, `execute`. O'qish `START TRANSACTION READ ONLY` ichida, qator va vaqt limiti bilan. Har bir yozish ilovada tasdiq oynasini ochadi (2 daqiqada javob bo'lmasa rad etiladi), oyna oldinga chiqadi. Hamma so'rovlar history'da "AI · klient" belgisi bilan. Claude Code, Cursor, VS Code, Claude Desktop uchun tayyor konfiguratsiya. Claude Code bilan oxirigacha sinab ko'rilgan.
+
 ## Keyinroq (g'oyalar)
 
 - ER diagrammani PNG/SVG sifatida eksport qilish, joylashuvni saqlab qolish
 - Query natijalarida ham FK havolalari (`org_table` orqali)
+- MCP: stdio rejimi (`mysql-lens.exe --mcp`) faqat stdio qo'llaydigan klientlar uchun; Zed uchun kengaytma
 - Jadval strukturasini tahrirlash (ustun, indeks, foreign key) — `ALTER TABLE` preview bilan
 - Schema compare: staging ↔ production, farqni tuzatadigan SQL bilan
 - Server monitori: processlist va KILL, sekin so'rovlar, holat grafiklari
