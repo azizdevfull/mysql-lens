@@ -5,10 +5,11 @@ use std::sync::Arc;
 use lens_core::engine::Engine;
 use lens_core::error::LensError;
 use lens_core::history::{HistoryEntry, HistoryStore};
+use lens_core::mcp::{self, Activity, Approval, McpHandle, McpHost, McpServer, McpSettings, McpSettingsStore};
 use lens_core::snippets::{Snippet, SnippetStore};
 use lens_core::store::{ConnStore, SecretStore};
 use lens_core::types::*;
-use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 type R<T> = Result<T, LensError>;
 
@@ -45,11 +46,149 @@ impl SecretStore for KeychainSecrets {
 }
 
 struct AppState {
-    engine: Engine,
+    engine: Arc<Engine>,
+    mcp: McpState,
     history: HistoryStore,
     snippets: SnippetStore,
     /// Open tabs and their state, written by the UI (`session.json`).
     session_path: PathBuf,
+}
+
+/* ----------------------------- MCP (AI access) ----------------------------- */
+
+/// How long the app waits for the user to allow or reject an AI write.
+const APPROVAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
+type Approvals = Arc<std::sync::Mutex<HashMap<String, tokio::sync::oneshot::Sender<bool>>>>;
+
+struct McpState {
+    store: McpSettingsStore,
+    running: tokio::sync::Mutex<Option<(Arc<McpServer>, McpHandle)>>,
+    error: std::sync::Mutex<Option<String>>,
+    approvals: Approvals,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct McpStatus {
+    settings: McpSettings,
+    running: bool,
+    port: Option<u16>,
+    error: Option<String>,
+}
+
+/// Shows AI writes to the user (an event the UI answers with `mcp_approve`) and
+/// records every AI request in the query history.
+struct AppMcpHost {
+    app: AppHandle,
+    approvals: Approvals,
+}
+
+#[async_trait::async_trait]
+impl McpHost for AppMcpHost {
+    async fn approve(&self, request: Approval) -> bool {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let id = request.id.clone();
+        self.approvals.lock().unwrap().insert(id.clone(), tx);
+        // The user is usually in their AI tool: bring the app forward so the request is seen.
+        if let Some(w) = self.app.get_webview_window("main") {
+            let _ = w.unminimize();
+            let _ = w.set_focus();
+            let _ = w.request_user_attention(Some(tauri::UserAttentionType::Critical));
+        }
+        if self.app.emit("mcp-approval", &request).is_err() {
+            self.approvals.lock().unwrap().remove(&id);
+            return false;
+        }
+        let answer = tokio::time::timeout(APPROVAL_TIMEOUT, rx).await;
+        self.approvals.lock().unwrap().remove(&id);
+        if answer.is_err() {
+            let _ = self.app.emit("mcp-approval-expired", &id);
+        }
+        matches!(answer, Ok(Ok(true)))
+    }
+
+    fn activity(&self, a: &Activity, results: &[ResultSet]) {
+        let mut entry = HistoryEntry::from_results(&a.conn_id, &a.conn_name, a.db.as_deref(), &a.sql, results);
+        entry.source = Some(format!("AI · {}", a.client));
+        entry.ms = a.ms;
+        if entry.error.is_none() {
+            entry.error = a.error.clone();
+        }
+        // History is a convenience: a failed write must not fail the request.
+        let _ = self.app.state::<AppState>().history.add(entry);
+        let _ = self.app.emit("mcp-activity", a);
+    }
+}
+
+async fn mcp_status_of(s: &AppState) -> McpStatus {
+    let running = s.mcp.running.lock().await;
+    McpStatus { settings: s.mcp.store.load(), running: running.is_some(), port: running.as_ref().map(|(_, h)| h.port), error: s.mcp.error.lock().unwrap().clone() }
+}
+
+/// Starts, stops or updates the MCP server to match the saved settings.
+async fn mcp_apply(app: &AppHandle) -> R<()> {
+    let s = app.state::<AppState>();
+    let settings = s.mcp.store.load();
+    let mut running = s.mcp.running.lock().await;
+    *s.mcp.error.lock().unwrap() = None;
+    // Same port: new permissions, limits and token apply without reopening the port.
+    if let Some((server, handle)) = running.as_ref() {
+        if settings.enabled && handle.port == settings.port {
+            server.update_settings(settings);
+            return Ok(());
+        }
+    }
+    if let Some((_, handle)) = running.take() {
+        handle.stop();
+    }
+    if !settings.enabled {
+        return Ok(());
+    }
+    let host = Arc::new(AppMcpHost { app: app.clone(), approvals: s.mcp.approvals.clone() });
+    let server = McpServer::new(s.engine.clone(), settings.clone(), host);
+    // The port of a server that was just stopped can take a moment to be released.
+    let mut last = None;
+    for _ in 0..10 {
+        match mcp::serve(server.clone(), settings.port).await {
+            Ok(handle) => {
+                *running = Some((server, handle));
+                return Ok(());
+            }
+            Err(e) => {
+                last = Some(e);
+                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            }
+        }
+    }
+    let e = last.unwrap();
+    *s.mcp.error.lock().unwrap() = Some(e.to_string());
+    Err(e)
+}
+
+#[tauri::command]
+async fn mcp_status(s: State<'_, AppState>) -> R<McpStatus> {
+    Ok(mcp_status_of(&s).await)
+}
+
+/// Saves the settings (an empty token gets a new one) and applies them.
+#[tauri::command]
+async fn mcp_save(app: AppHandle, s: State<'_, AppState>, mut settings: McpSettings) -> R<McpStatus> {
+    if settings.token.len() < 32 {
+        settings.token = mcp::new_token();
+    }
+    s.mcp.store.save(&settings)?;
+    // A failed start (port in use) is reported in the status, not as an error.
+    let _ = mcp_apply(&app).await;
+    Ok(mcp_status_of(&s).await)
+}
+
+#[tauri::command]
+async fn mcp_approve(s: State<'_, AppState>, id: String, allow: bool) -> R<()> {
+    if let Some(tx) = s.mcp.approvals.lock().unwrap().remove(&id) {
+        let _ = tx.send(allow);
+    }
+    Ok(())
 }
 
 /// Executed batches kept in the history file.
@@ -316,10 +455,16 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
-            let engine = Engine::new(ConnStore::new(dir.join("connections.json")), Arc::new(KeychainSecrets));
+            let engine = Arc::new(Engine::new(ConnStore::new(dir.join("connections.json")), Arc::new(KeychainSecrets)));
             let history = HistoryStore::new(dir.join("history.jsonl"), HISTORY_CAP);
             let snippets = SnippetStore::new(dir.join("snippets.json"));
-            app.manage(AppState { engine, history, snippets, session_path: dir.join("session.json") });
+            let mcp = McpState { store: McpSettingsStore::new(dir.join("mcp.json")), running: tokio::sync::Mutex::new(None), error: std::sync::Mutex::new(None), approvals: Arc::new(std::sync::Mutex::new(HashMap::new())) };
+            app.manage(AppState { engine, mcp, history, snippets, session_path: dir.join("session.json") });
+            // AI access starts with the app when it was left on.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = mcp_apply(&handle).await;
+            });
 
             // Same flags Tauri uses by default; the smoke test can additionally
             // ask for a DevTools port (never enabled for normal starts).
@@ -371,6 +516,9 @@ pub fn run() {
             snippets_list,
             snippets_save,
             snippets_delete,
+            mcp_status,
+            mcp_save,
+            mcp_approve,
             session_load,
             session_save,
             history_list,
